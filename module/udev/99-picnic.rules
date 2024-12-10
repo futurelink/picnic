@@ -1,0 +1,1 @@
+SUBSYSTEM=="picnc", KERNEL=="picnc", GROUP="users", MODE="0660"

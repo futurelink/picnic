@@ -1,0 +1,25 @@
+/dts-v1/;
+/plugin/;
+
+&{/}{
+    compatible = "rockchip,rk3566";
+
+    picnic {
+	compatible = "futurelink,picnic";
+
+	// GPIO pins must have suffix '-gpio' or '-gpios'
+	data-rw-gpio = <&gpio4 16 0>;
+	data-ready-gpio = <&gpio3 29 0>;
+	data-addr-gpio = <&gpio3 25 0>;
+	empty-gpio = <&gpio3 30 0>;
+	empty-lock-gpio = <&gpio3 26 0>;
+
+	// Change pins 19, 21, 23 - MOSI, MISO, CLK (SPI)
+	// Change pins 8, 10, 24 - TX, RX, TXE (RS-485)
+	data-bus-gpio = <&gpio4 0 0>, <&gpio3 22 0>, <&gpio4 4 0>, <&gpio4 2 0>,
+		<&gpio4 19 0>, <&gpio4 5 0>, <&gpio3 28 0>, <&gpio3 31 0>,
+		<&gpio3 24 0>, <&gpio4 13 0>, <&gpio4 12 0>, <&gpio4 3 0>,
+		<&gpio4 1 0>, <&gpio1 1 0>, <&gpio1 0 0>, <&gpio3 27 0>;
+	status = "okay";
+    };
+};
