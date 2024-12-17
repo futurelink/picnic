@@ -10,6 +10,7 @@
 #include <linux/of_platform.h>
 #endif
 
+#include "picnic_const.h"
 #include "picnic_main.h"
 #include "picnic_dev.h"
 
@@ -40,18 +41,18 @@ static struct platform_driver picnic_driver = {
 // Custom init and exit methods
 static int __init picnic_init(void) {
     if (platform_driver_register(&picnic_driver) != 0) {
-        printk(KERN_INFO "PiCNC driver failed\n");
+        printk(KERN_INFO "%s: PiCNC driver failed\n", MODULE_NAME);
 	return -1;
     }
 
-    printk(KERN_INFO "PiCNC driver loaded\n");
+    printk(KERN_INFO "%s: PiCNC driver loaded\n", MODULE_NAME);
     return 0;
 }
 
 static void __exit picnic_exit(void) {
     if(picnic_dev != 0) picnic_device_deinit(picnic_dev);
     platform_driver_unregister(&picnic_driver);
-    printk(KERN_INFO "PiCNC driver unloaded\n");
+    printk(KERN_INFO "%s; PiCNC driver unloaded\n", MODULE_NAME);
 }
 
 module_init(picnic_init);

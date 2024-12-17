@@ -30,13 +30,13 @@ uint8_t picnic_device_get_encoder_channels(const picnic_device_t *dev);
 uint8_t picnic_device_get_input_channels(const picnic_device_t *dev);
 uint8_t picnic_device_get_output_channels(const picnic_device_t *dev);
 uint8_t picnic_device_holds_positions(const picnic_device_t *dev);
-uint8_t picnic_device_channel_dir_hold(const picnic_device_t *dev);
-uint8_t picnic_device_channel_step_hold(const picnic_device_t *dev);
+float picnic_device_channel_dir_hold(const picnic_device_t *dev);
+float picnic_device_channel_step_hold(const picnic_device_t *dev);
 unsigned long picnic_device_frequency(const picnic_device_t *dev);
 
 uint16_t picnic_device_usec_to_ticks(const picnic_device_t *dev, float usec);
 float picnic_device_ticks_to_usec(const picnic_device_t *dev, uint16_t ticks);
 
-int picnic_device_execute(const picnic_device_t *dev, state_t *state);
+int picnic_device_execute(const picnic_device_t *dev, state_t *state, int period_ns);
 
 #endif

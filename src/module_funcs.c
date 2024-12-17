@@ -36,8 +36,14 @@ void update_state(void *arg, long period) {
         updated = update_servos(module, period);          // Update servos state
         updated = update_pwms(module, period) | updated;  // Update PWMs state
 
+	// Update outputs in state
+	int bank = 0;
+	for (int i = 0; i < 16; i++) {
+	    module->state->outputs[bank] = (*(module->outputs[i]) << i);
+	}
+
 #ifdef CONNECTION_DEVICE
-        if (module->device != 0) picnic_device_execute(module->device, module->state);
+        if (module->device != 0) picnic_device_execute(module->device, module->state, period);
 #endif
 
 #if defined(CONNECTION_NETWORK) || defined(CONNECTION_USART)
@@ -184,44 +190,23 @@ uint8_t inline update_servos(module_t *module, long period_ns) {
 
             // Save new state change: pulse period in microseconds minus step hold time in usecs
             // (thread period in nanoseconds / steps count / 1000 = step period in microseconds)
-            float tPeriod = (float)(period_ns + servo_state->period_error * 1000.0f) / (1000.0f * labs(pos_cmd_delta_steps));
-            //if (servo_state->period_error != 0) printf("servo %d period error %f\n", n, servo_state->period_error);
+            servo_state->pulses = labs(pos_cmd_delta_steps);
+            servo_state->period = (float)(period_ns + servo_state->period_error * 1000.0f) / (1000.0f * labs(pos_cmd_delta_steps));
 
-            if (tPeriod <= servo->step_hold) {
-                // If this happens after joint following error then FERROR and MIN_FERROR
-                // should be increased, because of network latency between commanded and feedback
-                // position.
-                printf("------------------ Pulse generator error --------------------\n");
-                printf("Pulse period %fus is too low on axis %d in order to complete %d steps\n", n, tPeriod, pos_cmd_delta_steps);
-                printf("pos_cmd = %f, prev_pos_cmd = %f, error = %f\n", *(servo->pos_cmd), servo->prev_pos_cmd, servo->pos_error);
-                printf("pos_fb = %f, pos_fb_steps = %d, period_error = %d\n", *(servo->pos_fb), *(servo->pos_fb_steps), servo_state->period_error);
-                printf("Step generator can't go that fast. In order to solve this issue you can:\n");
-                printf("  1) decrease step hold time (currently %fus)\n", servo->step_hold);
-                printf("  2) decrease steps/mm (currently %f)\n", servo->pos_scale);
-                printf("-------------------------------------------------------------\n");
+            // Assume feedback (steps / scale), although real feedback can be received from controller device.
+            if (!module->config.has_feedback) *(servo->pos_fb_steps) += pos_cmd_delta_steps;
 
-                servo_state->pulses = 0;
-                servo_state->period = 0;
-                servo_state->period_error = 0;
-            } else {
-                servo_state->period = tPeriod - servo->step_hold; // Subtract STEP hold time in microseconds
-                servo_state->pulses = labs(pos_cmd_delta_steps);
+            // Calculate new error value, (delta in units - delta in steps / scale)
+            // Generally the error is length in units which can't be moved with one step as
+            // it's too small. We mustn't neglect this error, therefore it will be added
+            // to distance in next iteration.
+            servo->pos_error = pos_cmd_delta - pos_cmd_delta_steps / servo->pos_scale;
 
-                // Assume feedback (steps / scale), although real feedback can be received from controller device.
-                if (!module->config.has_feedback) *(servo->pos_fb_steps) += pos_cmd_delta_steps;
+            // Save previous value
+            servo->prev_pos_cmd = pos_cmd;
 
-                // Calculate new error value, (delta in units - delta in steps / scale)
-                // Generally the error is length in units which can't be moved with one step as
-                // it's too small. We mustn't neglect this error, therefore it will be added
-                // to distance in next iteration.
-                servo->pos_error = pos_cmd_delta - pos_cmd_delta_steps / servo->pos_scale;
-
-                // Save previous value
-                servo->prev_pos_cmd = pos_cmd;
-
-                // Set updated flag
-                updated = 1;
-            }
+            // Set updated flag
+            updated = 1;
         }
 
         servo++;

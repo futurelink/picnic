@@ -260,7 +260,6 @@ static int export() {
 	}
     }
 
-
     /* export functions */
     if (hal_export_funct(FUNC_UPDATE_STATE, update_state, module, 1, 0, comp_id) != 0) {
         rtapi_print_msg(RTAPI_MSG_ERR, "%s: ERROR: pos update function export failed\n", MODULE_NAME);
@@ -316,15 +315,23 @@ static int export_outputs() {
     rtapi_print_msg(RTAPI_MSG_INFO, "%s: Exporting %d outputs and %d inputs\n", MODULE_NAME, module->config.output_channels, module->config.input_channels);
 
     /* export pins for digital outputs */
-    for (int i = 0; i < module->config.output_channels; i++) {
-        retval = hal_pin_bit_newf(HAL_IN, &(module->outputs[i]), comp_id, "%s.output.%d", MODULE_NAME, i);
-        if (retval != 0) return retval; 
+    if (module->config.output_channels) {
+	int banks = (int)ceilf(module->config.output_channels / 16);
+	module->state->outputs = hal_malloc(sizeof(uint16_t) * banks);
+	for (int i = 0; i < module->config.output_channels; i++) {
+            retval = hal_pin_bit_newf(HAL_IN, &(module->outputs[i]), comp_id, "%s.output.%d", MODULE_NAME, i);
+            if (retval != 0) return retval; 
+        }
     }
 
     /* export pins for digital outputs */
-    for (int i = 0; i < module->config.input_channels; i++) {
-        retval = hal_pin_bit_newf(HAL_OUT, &(module->inputs[i]), comp_id, "%s.input.%d", MODULE_NAME, i);
-        if (retval != 0) return retval; 
+    if (module->config.input_channels) {
+	int banks = (int)ceilf(module->config.input_channels / 16);
+	module->state->inputs = hal_malloc(sizeof(uint16_t) * banks);
+	for (int i = 0; i < module->config.input_channels; i++) {
+	    retval = hal_pin_bit_newf(HAL_OUT, &(module->inputs[i]), comp_id, "%s.input.%d", MODULE_NAME, i);
+	    if (retval != 0) return retval; 
+	}
     }
 
     return retval;

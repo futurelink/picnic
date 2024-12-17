@@ -19,7 +19,7 @@ int picnic_buffer_is_empty(picnic_buffer_t *buffer) {
 int picnic_buffer_push(picnic_buffer_t *buffer, picnic_state_t cmd) {
     if (picnic_buffer_is_full(buffer)) return -1;
 
-    unsigned short int next = buffer->head_next + 1;
+    __u16 next = buffer->head_next + 1;
     if (next == PICNIC_BUFFER_LEN) next = 0;
     buffer->data[buffer->head] = cmd;
     buffer->head = buffer->head_next;
@@ -29,9 +29,23 @@ int picnic_buffer_push(picnic_buffer_t *buffer, picnic_state_t cmd) {
 }
 
 picnic_state_t picnic_buffer_pull(picnic_buffer_t *buffer) {
-    unsigned short int next = buffer->tail + 1;
+    __u16 next = buffer->tail + 1;
     if (next == PICNIC_BUFFER_LEN) next = 0;
     picnic_state_t cmd = buffer->data[buffer->tail];
     buffer->tail = next;
     return cmd;
+}
+
+picnic_state_t picnic_buffer_get(picnic_buffer_t *buffer) {
+    return buffer->data[buffer->tail];
+}
+
+void picnic_buffer_update(picnic_buffer_t *buffer, picnic_state_t st) {
+    buffer->data[buffer->tail] = st;
+}
+
+void picnic_buffer_next(picnic_buffer_t *buffer) {
+    __u16 next = buffer->tail + 1;
+    if (next == PICNIC_BUFFER_LEN) next = 0;
+    buffer->tail = next;
 }

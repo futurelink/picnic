@@ -1,6 +1,8 @@
 /dts-v1/;
 /plugin/;
 
+// #include <dt-bindings/gpio/gpio.h>
+
 &{/}{
     compatible = "rockchip,rk3566";
 
@@ -11,7 +13,7 @@
 	data-rw-gpio = <&gpio4 16 0>;
 	data-ready-gpio = <&gpio3 29 0>;
 	data-addr-gpio = <&gpio3 25 0>;
-	empty-gpio = <&gpio3 30 0>;
+	empty-gpio = <&gpio3 30 16>;
 	empty-lock-gpio = <&gpio3 26 0>;
 
 	// Change pins 19, 21, 23 - MOSI, MISO, CLK (SPI)

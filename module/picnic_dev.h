@@ -4,6 +4,7 @@
 #include <linux/cdev.h>
 #include <linux/device.h>
 
+/* Device structure */
 typedef struct picnic_dev_t {
     int number;
     struct class *class;

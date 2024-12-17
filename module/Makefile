@@ -10,6 +10,7 @@ picnc-y := \
 	picnic_module.o \
 	picnic_main.o \
 	picnic_buffer.o \
+	picnic_caps.o \
 	picnic_dev.o
 
 all:

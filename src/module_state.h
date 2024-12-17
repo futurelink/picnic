@@ -31,8 +31,10 @@ typedef struct {
     uint8_t         recv_len;
 #endif
 
-    servo_state_t   *servo;         // Servo state
-    pwm_state_t     *pwm;           // PWM state
+    uint16_t        *inputs;        // Digital inputs state
+    uint16_t        *outputs;       // Digital outputs state
+    servo_state_t   *servo;         // Servos state
+    pwm_state_t     *pwm;           // PWMs state
 } state_t;
 
 #endif //_STEPGEN_STATE_H
