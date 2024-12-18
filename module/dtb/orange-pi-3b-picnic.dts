@@ -1,8 +1,6 @@
 /dts-v1/;
 /plugin/;
 
-// #include <dt-bindings/gpio/gpio.h>
-
 &{/}{
     compatible = "rockchip,rk3566";
 

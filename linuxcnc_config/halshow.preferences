@@ -1,0 +1,19 @@
+# Halshow settings
+# This file is generated automatically.
+wm geometry . 1001x615+610+302
+placeFrames 0.3
+set ::ratio 0.3
+set ::old_w_leftf 160
+set ::watchlist {
+    pin+picnic.output.14
+    pin+picnic.output.15
+    pin+picnic.output.13
+    pin+picnic.output.12
+}
+set ::workmode watchhal
+set ::watchInterval 100
+set ::col1_width 100
+set ::ffmts 
+set ::ifmts 
+set ::alwaysOnTop 0
+set ::autoSaveWatchlist 1

@@ -79,7 +79,7 @@ int picnic_probe(struct platform_device *pdev) {
     int ret = 0;
     struct device *dev = &pdev->dev;
 
-    printk(KERN_INFO "Probing PiCNC device\n");
+    printk(KERN_INFO "%s: Probing PiCNC device\n", MODULE_NAME);
 
     picnc = devm_kzalloc(dev, sizeof(*picnc), GFP_KERNEL);
     if (!picnc) return -ENOMEM;

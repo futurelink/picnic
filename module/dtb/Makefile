@@ -10,7 +10,7 @@ ${MAIN_DTS_FILE}.dtbo: ${MAIN_DTS_FILE}.dts.tmp
 	dtc -I dts -O dtb -o ${MAIN_DTS_FILE}.dtbo -b 0 -d ${MAIN_DTS_FILE}.dts.dep.tmp ${MAIN_DTS_FILE}.dts.tmp
 
 clean-deps:
-#	rm -f *.dep.tmp
+	rm -f *.dep.tmp
 	rm -f *.dts.tmp
 
 install:

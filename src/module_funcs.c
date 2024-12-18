@@ -90,7 +90,7 @@ void update_feedback(void *arg, long period) {
     // then we need to update commanded position
     // with feedback values on initialization.
     if (!module->state->initialized) {
-	if (module->config.has_feedback) initialize_position(module);
+	if (module->state->config.has_feedback) initialize_position(module);
 
 #ifdef CONNECTION_GPIO
 	gpio_command_buffer_init();
@@ -107,7 +107,7 @@ void update_feedback(void *arg, long period) {
  */
 void inline recalculate_feedback(module_t *module) {
     servo_t *servo = module->servo;
-    for (int n = 0; n < module->config.servo_channels; n++) {
+    for (int n = 0; n < module->state->config.servo_channels; n++) {
         *(servo->pos_fb) = *(servo->pos_fb_steps) / servo->pos_scale;
         servo++;
     }
@@ -117,7 +117,7 @@ uint8_t inline update_pwms(module_t *module, long period) {
     pwm_t *pwm = module->pwms;
 
     uint8_t updated = 0;
-    for (int n = 0; n < module->config.pwm_channels; n++) {
+    for (int n = 0; n < module->state->config.pwm_channels; n++) {
         // Calculate PWM duty
         hal_u32_t duty =  (hal_u32_t)(fabs(*pwm->value) * pwm->scale);
 
@@ -157,7 +157,7 @@ uint8_t inline update_servos(module_t *module, long period_ns) {
     // multiple messages are being shown in console (or log), so user needs to fine
     // tune HAL parameters to match controller/network abilities.
     if (state->fifo_full) {
-        for (int n = 0; n < module->config.servo_channels; n++) {
+        for (int n = 0; n < module->state->config.servo_channels; n++) {
             servo_state->period = 0;
             servo_state->pulses = 0;
             servo_state->period_error = 0;
@@ -168,7 +168,7 @@ uint8_t inline update_servos(module_t *module, long period_ns) {
 #endif
 
     uint8_t updated = 0;
-    for (int n = 0; n < module->config.servo_channels; n++) {
+    for (int n = 0; n < module->state->config.servo_channels; n++) {
         // Calculate delta include previous error value
         real_t pos_cmd = *(servo->pos_cmd);
         real_t pos_cmd_delta = pos_cmd - servo->prev_pos_cmd + servo->pos_error;
@@ -194,7 +194,7 @@ uint8_t inline update_servos(module_t *module, long period_ns) {
             servo_state->period = (float)(period_ns + servo_state->period_error * 1000.0f) / (1000.0f * labs(pos_cmd_delta_steps));
 
             // Assume feedback (steps / scale), although real feedback can be received from controller device.
-            if (!module->config.has_feedback) *(servo->pos_fb_steps) += pos_cmd_delta_steps;
+            if (!module->state->config.has_feedback) *(servo->pos_fb_steps) += pos_cmd_delta_steps;
 
             // Calculate new error value, (delta in units - delta in steps / scale)
             // Generally the error is length in units which can't be moved with one step as
@@ -223,7 +223,7 @@ void initialize_position(module_t *module) {
     servo_t *servo = module->servo;
 
     rtapi_print_msg(RTAPI_MSG_INFO, "%s: Initialized at positions:\n", MODULE_NAME);
-    for (int n = 0; n < module->config.servo_channels; n++) {
+    for (int n = 0; n < module->state->config.servo_channels; n++) {
         double pos_fb = *(servo->pos_fb_steps) / servo->pos_scale;
         servo->pos_error = 0.0;
         servo->prev_pos_cmd = pos_fb;
@@ -246,7 +246,7 @@ void reset_position(module_t *module) {
         module->state->initialized = false;
 
         rtapi_print_msg(RTAPI_MSG_INFO, "%s: Shut down at positions:\n", MODULE_NAME);
-        for (int n = 0; n < module->config.servo_channels; n++) {
+        for (int n = 0; n < module->state->config.servo_channels; n++) {
             rtapi_print_msg(RTAPI_MSG_INFO, "%s: Axis %d: pos_fb_steps = %d, pos_fb = %f\n", MODULE_NAME, n, *(servo->pos_fb_steps), *(servo->pos_fb));
             servo->pos_error = 0.0;
             servo->prev_pos_cmd = 0.0;

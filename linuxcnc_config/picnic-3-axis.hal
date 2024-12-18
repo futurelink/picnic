@@ -1,0 +1,65 @@
+loadrt [KINS]KINEMATICS
+loadrt [EMCMOT]EMCMOT base_period_nsec=[EMCMOT]BASE_PERIOD servo_period_nsec=[EMCMOT]SERVO_PERIOD num_joints=[KINS]JOINTS 
+loadrt picnic device="/dev/picnc"
+
+addf picnic.update-feedback	base-thread
+addf picnic.update-state	servo-thread
+addf motion-command-handler	servo-thread
+addf motion-controller		servo-thread
+
+# Service pins & parameters
+############################
+setp				picnic.dir-hold 3
+setp				picnic.step-hold 2.5
+#setp				picnic.offline-interval 5		# Go offline after 5 servo-thread periods of no answer
+net online			<= picnic.online			# Show online
+net estop-out			<= iocontrol.0.user-enable-out  => picnic.enable
+net estop-out			=> iocontrol.0.emc-enable-in
+
+
+# Spindle PWM speed control
+############################
+#setp				picnic.pwm.0.scale 10.25
+net spindle-cw			<= spindle.0.forward	=> picnic.output.7
+net spindle-ccw			<= spindle.0.reverse	=> picnic.output.6
+#net spindle-on			<= spindle.0.on		=> picnic.pwm.0.enable
+#net spindle-cmd-rpm		<= spindle.0.speed-out	=> picnic.pwm.0.value
+
+# Spindle variables
+###########################
+net spindle-cmd-rpm-abs		<= spindle.0.speed-out-abs
+net spindle-cmd-rps		<= spindle.0.speed-out-rps
+net spindle-cmd-rps-abs		<= spindle.0.speed-out-rps-abs
+net spindle-at-speed 		=> spindle.0.at-speed
+
+# Axis configuration
+##########################
+setp picnic.servo.0.position-scale		[JOINT_0]SCALE
+setp picnic.servo.0.dir-active-low		1
+setp picnic.servo.0.step-active-low		0
+net xpos-cmd	joint.0.motor-pos-cmd 		=> picnic.servo.0.position-cmd
+net xpos-fb	picnic.servo.0.position-fb	=> joint.0.motor-pos-fb
+net xenable	joint.0.amp-enable-out		=> picnic.servo.0.enable
+
+setp picnic.servo.1.position-scale		[JOINT_1]SCALE
+setp picnic.servo.1.dir-active-low		0
+setp picnic.servo.1.step-active-low		0
+net ypos-cmd	joint.1.motor-pos-cmd		=> picnic.servo.1.position-cmd
+net ypos-fb	picnic.servo.1.position-fb	=> joint.1.motor-pos-fb
+net yenable	joint.1.amp-enable-out		=> picnic.servo.1.enable
+
+setp picnic.servo.2.position-scale		[JOINT_2]SCALE
+setp picnic.servo.2.dir-active-low		1
+setp picnic.servo.2.step-active-low		0
+net zpos-cmd	joint.2.motor-pos-cmd		=> picnic.servo.2.position-cmd
+net zpos-fb	picnic.servo.2.position-fb	=> joint.2.motor-pos-fb
+net zenable	joint.2.amp-enable-out		=> picnic.servo.2.enable
+
+# Other configuration
+##############################
+
+loadusr -W hal_manualtoolchange
+net tool-change iocontrol.0.tool-change => hal_manualtoolchange.change
+net tool-changed iocontrol.0.tool-changed <= hal_manualtoolchange.changed
+net tool-number iocontrol.0.tool-prep-number => hal_manualtoolchange.number
+net tool-prepare-loopback iocontrol.0.tool-prepare => iocontrol.0.tool-prepared

@@ -21,8 +21,8 @@ static ssize_t dev_read(struct file*, char*, size_t, loff_t*);
 static ssize_t dev_write(struct file*, const char*, size_t, loff_t*);
 static __u8 dev_exec_command(const char *buffer, __u8 *recv_offset, __u8 send_offset, picnic_state_t *st);
 
-static __u8 picnic_send_ok(__u8 cmd, __u8 send_offset);
-static __u8 picnic_send_status(__u8 cmd, __u8 send_offset, uint8_t code);
+static __u8 picnic_send_ok(__u8 cmd, __u8 *send_offset);
+static __u8 picnic_send_status(__u8 cmd, __u8 *send_offset, uint8_t code);
 
 
 static struct file_operations fops = {
@@ -90,114 +90,178 @@ ssize_t dev_write(struct file* filep, const char* buffer, size_t len, loff_t* of
 }
 
 __u8 dev_exec_command(const char *buffer, __u8 *recv_offset, __u8 send_offset, picnic_state_t *st) {
-    int sLen = 0;
     __u16 reg = 0;
     __u16 v = 0;
     __u8 recv_offset_t = *recv_offset;
     __u8 cmd = picnic_dev->recv_buffer[recv_offset_t++];
+    __u8 prev_send_offset = send_offset;
     switch (cmd) {
         case PICNIC_PROTO_CMD_READ_DEVICE_ID:
-	    picnic_read_register(PICNIC_DEVICE_ID_REGISTER, &v);
-	    picnic_dev->send_buffer[send_offset++] = cmd;
-	    for (int i = 0; i < 2; i++) {
-		picnic_dev->send_buffer[send_offset++] = v >> (i << 3);
-		sLen++;
+	    if (picnic_read_register(PICNIC_DEVICE_ID_REGISTER, &v) == 0) {
+		picnic_dev->send_buffer[send_offset++] = cmd;
+		picnic_dev->send_buffer[send_offset++] = 0; // Status 0 - OK
+		for (int i = 0; i < 2; i++) {
+		    picnic_dev->send_buffer[send_offset++] = v >> (i << 3);
+		}
+	    } else {
+		picnic_send_status(cmd, &send_offset, 0xFF);
 	    }
 	    break;
 
+	/* Read input values */
 	case PICNIC_PROTO_CMD_READ_INPUTS:
 	    picnic_dev->send_buffer[send_offset++] = cmd;
+	    picnic_dev->send_buffer[send_offset++] = 0; // Status 0 - OK
 	    picnic_dev->send_buffer[send_offset++] = picnc->caps.input_banks;
 	    for (__u8 bank = 0; bank < picnc->caps.input_banks; bank++) {
 		picnic_read_register(picnc->caps.input_addrs[bank], &v);
 		for (int i = 0; i < 2; i++) {
 		    picnic_dev->send_buffer[send_offset++] = v >> (i << 3);
-		    sLen++;
 		}
 	    }
 	    break;
 
+	/* Read current encoder values */
 	case PICNIC_PROTO_CMD_READ_ENCODERS: // Not supported yet
-	    sLen = picnic_send_status(cmd, send_offset, 0xFF); // Error code - command is invalid
+	    picnic_send_status(cmd, &send_offset, 0xFF); // Error code - command is invalid
 	    break;
 
+	/* Read current output values */
 	case PICNIC_PROTO_CMD_READ_OUTPUTS:
 	    picnic_dev->send_buffer[send_offset++] = cmd;
+	    picnic_dev->send_buffer[send_offset++] = 0; // Status 0 - OK
 	    picnic_dev->send_buffer[send_offset++] = picnc->caps.output_banks;
 	    for (__u8 bank = 0; bank < picnc->caps.output_banks; bank++) {
-		picnic_read_register(picnc->caps.output_addrs[bank], &v);
-		for (int i = 0; i < 2; i++) {
-		    picnic_dev->send_buffer[send_offset++] = v >> (i << 3);
-		    sLen++;
+		if (picnic_read_register(picnc->caps.output_addrs[bank], &v) == 0) {
+		    for (int i = 0; i < 2; i++) {
+			picnic_dev->send_buffer[send_offset++] = v >> (i << 3);
+		    }
+		} else {
+		    picnic_send_status(cmd, &send_offset, 0xFF);
 		}
 	    }
 	    break;
 
+	/* Read current servo pulses generation values */
 	case PICNIC_PROTO_CMD_READ_SERVOS: // Not supported yet
-	    sLen = picnic_send_status(cmd, send_offset, 0xFF); // Error code - command is invalid
+	    picnic_send_status(cmd, &send_offset, 0xFF); // Error code - command is invalid
 	    break;
 
+	/* Read current PWM values */
 	case PICNIC_PROTO_CMD_READ_PWMS: // Not supported yet
-	    sLen = picnic_send_status(cmd, send_offset, 0xFF); // Error code - command is invalid
+	    picnic_send_status(cmd, &send_offset, 0xFF); // Error code - command is invalid
+	    break;
+
+	/* Read settings from either device or kernel driver */
+	case PICNIC_PROTO_CMD_READ_SETTINGS:
+	    __u8 setting = picnic_dev->recv_buffer[recv_offset_t++];
+	    picnic_dev->send_buffer[send_offset++] = cmd;
+	    switch (setting) {
+		case PICNIC_PROTO_CMD_READ_SETTING_SERVO_CHANNELS: // Servo channels number
+		    picnic_dev->send_buffer[send_offset++] = 0; // Status 0 - OK
+		    picnic_dev->send_buffer[send_offset++] = PICNIC_PROTO_CMD_READ_SETTING_SERVO_CHANNELS;
+		    picnic_dev->send_buffer[send_offset++] = picnc->caps.servo_channels;
+		    break;
+		case PICNIC_PROTO_CMD_READ_SETTING_PWM_CHANNELS: // PWM channels number
+		    picnic_dev->send_buffer[send_offset++] = 0; // Status 0 - OK
+		    picnic_dev->send_buffer[send_offset++] = PICNIC_PROTO_CMD_READ_SETTING_PWM_CHANNELS;
+		    picnic_dev->send_buffer[send_offset++] = picnc->caps.pwm_channels;
+		    break;
+		case PICNIC_PROTO_CMD_READ_SETTING_OUTPUTS: // Outputs count (x16 per bank)
+		    picnic_dev->send_buffer[send_offset++] = 0; // Status 0 - OK
+		    picnic_dev->send_buffer[send_offset++] = PICNIC_PROTO_CMD_READ_SETTING_OUTPUTS;
+		    picnic_dev->send_buffer[send_offset++] = picnc->caps.output_banks * 16;
+		    break;
+		case PICNIC_PROTO_CMD_READ_SETTING_INPUTS: // Inputs count (x16 per bank)
+		    picnic_dev->send_buffer[send_offset++] = 0; // Status 0 - OK
+		    picnic_dev->send_buffer[send_offset++] = PICNIC_PROTO_CMD_READ_SETTING_INPUTS;
+		    picnic_dev->send_buffer[send_offset++] = picnc->caps.input_banks * 16;
+		    break;
+		case PICNIC_PROTO_CMD_READ_SETTING_DIR_HOLD: // Dir hold in ticks
+		    if (picnic_read_register(picnc->caps.dir_hold_addr, &v) == 0) {
+			picnic_dev->send_buffer[send_offset++] = 0; // Status 0 - OK
+			picnic_dev->send_buffer[send_offset++] = PICNIC_PROTO_CMD_READ_SETTING_DIR_HOLD;
+			picnic_dev->send_buffer[send_offset++] = v;
+		    } else {
+			picnic_send_status(cmd, &send_offset, 0xFF); // DIR hold can't be FF (255) so this is treated as error
+		    }
+		    break;
+		case PICNIC_PROTO_CMD_READ_SETTING_STEP_HOLD: // Dir hold in ticks
+		    if (picnic_read_register(picnc->caps.step_hold_addr, &v) == 0) {
+			picnic_dev->send_buffer[send_offset++] = 0; // Status 0 - OK
+			picnic_dev->send_buffer[send_offset++] = PICNIC_PROTO_CMD_READ_SETTING_STEP_HOLD;
+			picnic_dev->send_buffer[send_offset++] = 13;
+		    } else {
+			picnic_send_status(cmd, &send_offset, 0xFF); // STEP hold can't be FF (255) so this is treated as error
+		    }
+		    break;
+		default:
+		    picnic_send_status(cmd, &send_offset, 0xFF); // Error code - command is invalid
+	    }
 	    break;
 
 	case PICNIC_PROTO_CMD_WRITE_DIR_HOLD:
 /*	    if (l != 3) {
-		sLen = picnic_send_status(cmd, send_offset, 0xFF);
+		picnic_send_status(cmd, &send_offset, 0xFF);
 		break;
 	    }*/
 	    reg = (picnic_dev->recv_buffer[recv_offset_t] << 8 & 0xff00) | (picnic_dev->recv_buffer[recv_offset_t + 1] & 0xff);
 	    recv_offset_t += 2;
-	    picnic_write_register(picnc->caps.dir_hold_addr, reg);
-	    sLen = picnic_send_ok(cmd, send_offset);
+	    if (picnic_write_register(picnc->caps.dir_hold_addr, reg) == 0) {
+		picnic_send_ok(cmd, &send_offset);
+	    } else {
+		picnic_send_status(cmd, &send_offset, 0xFF); // Error code 0xFF
+	    }
 	    break;
 
 	case PICNIC_PROTO_CMD_WRITE_STEP_HOLD:
 /*	    if (l != 3) {
-		sLen = picnic_send_status(cmd, send_offset, 0xFF);
+		picnic_send_status(cmd, &send_offset, 0xFF);
 		break;
 	    }*/
 	    reg = (picnic_dev->recv_buffer[recv_offset_t] << 8 & 0xff00) | (picnic_dev->recv_buffer[recv_offset_t + 1] & 0xff);
 	    recv_offset_t += 2;
-	    picnic_write_register(picnc->caps.step_hold_addr, reg);
-	    sLen = picnic_send_ok(cmd, send_offset);
+	    if (picnic_write_register(picnc->caps.step_hold_addr, reg) == 0) {
+		picnic_send_ok(cmd, &send_offset);
+	    } else {
+		picnic_send_status(cmd, &send_offset, 0xFF); // Error code 0xFF
+	    }
 	    break;
 
 	case PICNIC_PROTO_CMD_WRITE_OUTPUTS:
 	    __u8 bank = picnic_dev->recv_buffer[recv_offset_t++];
 	    if (bank > picnc->caps.output_banks) { // Command is invalid, bank is invalid
-		sLen = picnic_send_status(cmd, send_offset, 0xFF);
+		picnic_send_status(cmd, &send_offset, 0xFF);
 		break;
 	    }
 	    reg = (picnic_dev->recv_buffer[recv_offset_t] << 8 & 0xff00) | (picnic_dev->recv_buffer[recv_offset_t + 1] & 0xff);
 	    recv_offset_t += 2;
-	    //picnic_write_register(picnc->caps.output_addrs[bank], reg);
 	    st->outputs[bank] = reg;
 	    st->update_flags |= PICNIC_BUFFER_UPDATED_OUTPUTS;
-	    sLen = picnic_send_ok(cmd, send_offset);
+	    picnic_send_ok(cmd, &send_offset);
 	    break;
 
 	case PICNIC_PROTO_CMD_WRITE_SERVOS:
 	    /*if (l <= 2) {
-		sLen = picnic_send_status(cmd, send_offset, 0xFF); // Error code - command is invalid
+		picnic_send_status(cmd, &send_offset, 0xFF); // Error code - command is invalid
 		break;
 	    }*/
 
 	    int servo_count = picnic_dev->recv_buffer[recv_offset_t++]; // get number of servo channels
 	    if (servo_count > picnc->caps.servo_channels) {
-		sLen = picnic_send_status(cmd, send_offset, 0x01); // Error code - servo channels too big
+		picnic_send_status(cmd, &send_offset, 0x01); // Error code - servo channels too big
 		break;
 	    }
 
 	    /*if (l != servo_count * 4 + 2) {
-		sLen = picnic_send_status(cmd, send_offset, 0x02); // Error code - servo channels and data size mismatch
+		picnic_send_status(cmd, &send_offset, 0x02); // Error code - servo channels and data size mismatch
 		break;
 	    }*/
 
 	    if (picnic_buffer_is_full(&picnic_buffer)) {
 		printk(KERN_ERR "%s: Buffer is full (tail = %d, head = %d, head_next = %d)\n", MODULE_NAME, picnic_buffer.tail, picnic_buffer.head, picnic_buffer.head_next);
 		picnic_pulses_buffer_send(); // Try to send buffer data to free some space
-		sLen = picnic_send_status(cmd, send_offset, 0x03); // Error code - pulses buffer is full
+		picnic_send_status(cmd, &send_offset, 0x03); // Error code - pulses buffer is full
 		break;
 	    }
 
@@ -209,7 +273,7 @@ __u8 dev_exec_command(const char *buffer, __u8 *recv_offset, __u8 send_offset, p
 	    recv_offset_t += 4 * servo_count;
 	    st->update_flags |= PICNIC_BUFFER_UPDATED_SERVOS;
 
-	    sLen = picnic_send_ok(cmd, send_offset);
+	    picnic_send_ok(cmd, &send_offset);
 	    break;
 
 	default: break;
@@ -217,16 +281,17 @@ __u8 dev_exec_command(const char *buffer, __u8 *recv_offset, __u8 send_offset, p
 
     *recv_offset = recv_offset_t;
 
-    return sLen;
+    return send_offset - prev_send_offset;
 }
 
-__u8 picnic_send_status(__u8 cmd, __u8 send_offset, uint8_t code) {
-    picnic_dev->send_buffer[send_offset++] = cmd;
-    picnic_dev->send_buffer[send_offset++] = code;
+__u8 picnic_send_status(__u8 cmd, __u8 *send_offset, uint8_t code) {
+    picnic_dev->send_buffer[*(send_offset)] = cmd;
+    picnic_dev->send_buffer[*(send_offset)+1] = code;
+    *(send_offset) += 2;
     return 2;
 }
 
-__u8 picnic_send_ok(__u8 cmd, __u8 send_offset) {
+__u8 picnic_send_ok(__u8 cmd, __u8 *send_offset) {
     return picnic_send_status(cmd, send_offset, 0x00);
 }
 

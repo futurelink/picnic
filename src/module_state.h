@@ -18,8 +18,19 @@ typedef struct {
     uint16_t duty;
 } pwm_state_t;
 
+typedef struct config_t {
+    uint16_t device_id;
+    uint8_t has_feedback;
+    uint8_t servo_channels;
+    uint8_t encoder_channels;
+    uint8_t pwm_channels;
+    uint8_t output_channels;
+    uint8_t input_channels;
+} config_t;
+
 typedef struct {
     volatile bool   initialized;    // Initialized flag
+    config_t        config;         // Device configuration
 
 #if defined(CONNECTION_NETWORK) || defined(CONNECTION_USART)
     volatile uint8_t fifo_full;     // Controller FIFO status
@@ -30,6 +41,7 @@ typedef struct {
     uint8_t         *recv_buffer;
     uint8_t         recv_len;
 #endif
+
 
     uint16_t        *inputs;        // Digital inputs state
     uint16_t        *outputs;       // Digital outputs state
