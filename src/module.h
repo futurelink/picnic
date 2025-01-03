@@ -50,7 +50,6 @@ typedef struct {
 
 typedef struct {
 #ifdef CONNECTION_DEVICE
-    picnic_device_def_t config;
     picnic_device_t *device;
 #endif
 

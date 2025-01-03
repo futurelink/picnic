@@ -64,7 +64,11 @@ int rtapi_app_main(void) {
 
     rtapi_print_msg(RTAPI_MSG_INFO, "%s: Config initialized, proceeding..\n", MODULE_NAME);
 
-    picnic_get_device_id(module->device);
+    ret = picnic_get_device_id(module->device);
+    if (ret != 0) {
+	rtapi_print_msg(RTAPI_MSG_ERR, "%s: device communication failed\n", MODULE_NAME);
+	return ret;
+    }
 
     /* Initialize state */
     ret = init_state();
@@ -132,18 +136,6 @@ static int init_module_config() {
 
 	rtapi_print_msg(RTAPI_MSG_INFO, "%s: Device initialized\n", MODULE_NAME);
 
-	/* Get configuration form module device ID */
-	module->config.servo_channels = picnic_device_get_servo_channels(module->device);
-	if (module->config.servo_channels == 0) {
-		rtapi_print_msg(RTAPI_MSG_ERR, "%s: ERROR: no servo channels configured\n", MODULE_NAME);
-		return -1;
-	}
-
-	module->config.pwm_channels = picnic_device_get_pwm_channels(module->device);
-	module->config.encoder_channels = picnic_device_get_encoder_channels(module->device);
-	module->config.input_channels = picnic_device_get_input_channels(module->device);
-	module->config.output_channels = picnic_device_get_output_channels(module->device);
-	module->config.has_feedback = picnic_device_holds_positions(module->device);
 
 	rtapi_print_msg(RTAPI_MSG_INFO, "%s: Configuration initialized\n", MODULE_NAME);
 	return 0;
@@ -164,9 +156,22 @@ static int init_state() {
 
     rtapi_print_msg(RTAPI_MSG_INFO, "%s: State allocated\n", MODULE_NAME);
 
+    /* Get configuration form module device ID */
+    picnic_device_get_servo_channels(module->device, &module->state->config.servo_channels);
+    if (module->state->config.servo_channels == 0) {
+	    rtapi_print_msg(RTAPI_MSG_ERR, "%s: ERROR: no servo channels configured\n", MODULE_NAME);
+	    return -1;
+    }
+
+    picnic_device_get_pwm_channels(module->device, &module->state->config.pwm_channels);
+    picnic_device_get_encoder_channels(module->device, &module->state->config.encoder_channels);
+    picnic_device_get_input_channels(module->device, &module->state->config.input_channels);
+    picnic_device_get_output_channels(module->device, &module->state->config.output_channels);
+    module->state->config.has_feedback = picnic_device_holds_positions(module->device);
+
     /* Allocate module servo state structure */
-    if (module->config.servo_channels > 0) {
-	module->state->servo = hal_malloc(module->config.servo_channels * sizeof(servo_state_t));
+    if (module->state->config.servo_channels > 0) {
+	module->state->servo = hal_malloc(module->state->config.servo_channels * sizeof(servo_state_t));
 	if (module->state->servo == 0) {
 	    rtapi_print_msg(RTAPI_MSG_ERR, "%s: ERROR: hal_malloc() failed\n", MODULE_NAME);
 	    hal_exit(comp_id);
@@ -177,8 +182,8 @@ static int init_state() {
     rtapi_print_msg(RTAPI_MSG_INFO, "%s: Servos allocated\n", MODULE_NAME);
 
     /* Allocate module PWM state structure */
-    if (module->config.pwm_channels > 0) {
-	module->state->pwm = hal_malloc(module->config.pwm_channels * sizeof(pwm_state_t));
+    if (module->state->config.pwm_channels > 0) {
+	module->state->pwm = hal_malloc(module->state->config.pwm_channels * sizeof(pwm_state_t));
 	if (module->state->pwm == 0) {
 	    rtapi_print_msg(RTAPI_MSG_ERR, "%s: ERROR: hal_malloc() failed\n", MODULE_NAME);
 	    hal_exit(comp_id);
@@ -229,8 +234,8 @@ static int export() {
     }
 
     /* allocate shared memory for servo structures */
-    if (module->config.servo_channels > 0) {
-	module->servo = hal_malloc(module->config.servo_channels * sizeof(servo_t));
+    if (module->state->config.servo_channels > 0) {
+	module->servo = hal_malloc(module->state->config.servo_channels * sizeof(servo_t));
 	if (module->servo == 0) {
 	    rtapi_print_msg(RTAPI_MSG_ERR, "%s: ERROR: hal_malloc() failed\n", MODULE_NAME);
 	    hal_exit(comp_id);
@@ -245,8 +250,8 @@ static int export() {
     }
 
     /* allocate shared memory for PWMs */
-    if (module->config.pwm_channels > 0) {
-	module->pwms = hal_malloc(module->config.pwm_channels * sizeof(pwm_t));
+    if (module->state->config.pwm_channels > 0) {
+	module->pwms = hal_malloc(module->state->config.pwm_channels * sizeof(pwm_t));
 	if (module->pwms == 0) {
 	    rtapi_print_msg(RTAPI_MSG_ERR, "%s: ERROR: hal_malloc() failed\n", MODULE_NAME);
 	    hal_exit(comp_id);
@@ -312,23 +317,23 @@ static int export_module_pins() {
 static int export_outputs() {
     int retval = 0;
 
-    rtapi_print_msg(RTAPI_MSG_INFO, "%s: Exporting %d outputs and %d inputs\n", MODULE_NAME, module->config.output_channels, module->config.input_channels);
+    rtapi_print_msg(RTAPI_MSG_INFO, "%s: Exporting %d outputs and %d inputs\n", MODULE_NAME, module->state->config.output_channels, module->state->config.input_channels);
 
     /* export pins for digital outputs */
-    if (module->config.output_channels) {
-	int banks = (int)ceilf(module->config.output_channels / 16);
+    if (module->state->config.output_channels) {
+	int banks = (int)ceilf(module->state->config.output_channels / 16);
 	module->state->outputs = hal_malloc(sizeof(uint16_t) * banks);
-	for (int i = 0; i < module->config.output_channels; i++) {
+	for (int i = 0; i < module->state->config.output_channels; i++) {
             retval = hal_pin_bit_newf(HAL_IN, &(module->outputs[i]), comp_id, "%s.output.%d", MODULE_NAME, i);
             if (retval != 0) return retval; 
         }
     }
 
     /* export pins for digital outputs */
-    if (module->config.input_channels) {
-	int banks = (int)ceilf(module->config.input_channels / 16);
+    if (module->state->config.input_channels) {
+	int banks = (int)ceilf(module->state->config.input_channels / 16);
 	module->state->inputs = hal_malloc(sizeof(uint16_t) * banks);
-	for (int i = 0; i < module->config.input_channels; i++) {
+	for (int i = 0; i < module->state->config.input_channels; i++) {
 	    retval = hal_pin_bit_newf(HAL_OUT, &(module->inputs[i]), comp_id, "%s.input.%d", MODULE_NAME, i);
 	    if (retval != 0) return retval; 
 	}
@@ -340,9 +345,9 @@ static int export_outputs() {
 static int export_servos() {
     int ret = 0;
 
-    rtapi_print_msg(RTAPI_MSG_INFO, "%s: Exporting %d servo channels\n", MODULE_NAME, module->config.servo_channels);
+    rtapi_print_msg(RTAPI_MSG_INFO, "%s: Exporting %d servo channels\n", MODULE_NAME, module->state->config.servo_channels);
 
-    for (int n = 0; n < module->config.servo_channels; n++) {
+    for (int n = 0; n < module->state->config.servo_channels; n++) {
         /* export all servo vars */
         ret = export_servo(n, &(module->servo[n]));
         if (ret != 0) {
@@ -358,9 +363,9 @@ static int export_servos() {
 static int export_pwms() {
     int retval = 0;
 
-    rtapi_print_msg(RTAPI_MSG_INFO, "%s: Exporting %d PWM channels\n", MODULE_NAME, module->config.pwm_channels);
+    rtapi_print_msg(RTAPI_MSG_INFO, "%s: Exporting %d PWM channels\n", MODULE_NAME, module->state->config.pwm_channels);
 
-    for (int num = 0; num < module->config.pwm_channels; num++) {
+    for (int num = 0; num < module->state->config.pwm_channels; num++) {
 	pwm_t *pwm = &(module->pwms[num]);
 
 	/* export pin for enable command */
