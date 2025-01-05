@@ -50,6 +50,14 @@ int picnic_pulses_buffer_send() {
 		}
 	    }
 	    gpiod_set_value(picnc->pulse_buffer_lock, 0); // Unlock buffer - fire a bunch of pulses
+
+	    // Update position counters in kernel module
+	    // if device does not support position hold & store
+	    if (!picnc->caps.servo_holds_position) {
+		for (__u8 i = 0; i < picnc->caps.servo_channels; i++) {
+		    picnc->servo_positions[i] += (st.pulses[i] & 0x7FFF) * (((st.pulses[i] & 0x8000) == 0) ? -1 : 1);
+		}
+	    }
 	}
 
 	if (st.update_flags & PICNIC_BUFFER_UPDATED_PWMS) {
@@ -185,18 +193,19 @@ int picnic_probe(struct platform_device *pdev) {
 	return -EINVAL;
     }
 
-    printk(KERN_INFO "%s: Got PiCNC controller ID 0x%X\n", MODULE_NAME, device_id);
+    printk(KERN_INFO "%s: Got PiCNC controller ID 0x%04X\n", MODULE_NAME, device_id);
     picnc->id = device_id;
 
     // Initialize capabilties structure
     ret = picnic_caps_init(device_id, &(picnc->caps));
     if (ret < 0) {
-	printk(KERN_ERR "%s: Device ID = %4X is unknown", MODULE_NAME, device_id);
+	printk(KERN_ERR "%s: Device ID = %04X is not supported", MODULE_NAME, device_id);
 	return -EINVAL;
     }
 
     // Initialize send buffer
-    picnc->channels = picnc->caps.servo_channels;
+    picnc->servo_positions = kmalloc(picnc->caps.servo_channels * sizeof(long), GFP_KERNEL);
+    memset(picnc->servo_positions, 0, picnc->caps.servo_channels * sizeof(long));
     picnic_buffer_init(&(picnic_buffer));
 
     // Write outputs set all to 'off' state

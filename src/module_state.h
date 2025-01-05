@@ -47,6 +47,7 @@ typedef struct {
     uint16_t        *outputs;       // Digital outputs state
     servo_state_t   *servo;         // Servos state
     pwm_state_t     *pwm;           // PWMs state
+    int32_t         positions[6];   // Current servo positions
 } state_t;
 
 #endif //_STEPGEN_STATE_H

@@ -2,3 +2,5 @@ build/*
 *.o
 .*.cmd
 *.mod*
+test
+uspace

@@ -11,8 +11,8 @@
 #include "../module/picnic_const.h"
 #include "picnic_device.h"
 
-#define PICNIC_MAX_SEND 64
-#define PICNIC_MAX_RECV 32
+#define PICNIC_MAX_SEND 128
+#define PICNIC_MAX_RECV 128
 
 picnic_device_t *picnic_device_init(const char *dev_file) {
     picnic_device_t *d = malloc(sizeof(picnic_device_t));
@@ -64,26 +64,26 @@ int picnic_get_device_id(const picnic_device_t *d) {
  */
 int picnic_device_execute(const picnic_device_t *dev, state_t *state, int period_ns) {
     int i = 0, bytes = 0;
-    uint8_t b[PICNIC_MAX_SEND];
+    uint8_t sb[PICNIC_MAX_SEND], rb[PICNIC_MAX_RECV];
     int servo_channels = state->config.servo_channels;
     int output_banks = (int)ceil(state->config.output_channels / 16);
     int cmd_num = 0;
     if (dev->fd == 0) return -1;
 
-    b[i++] = 0; // Number of commands in send initially 0
+    sb[i++] = 0; // Number of commands in send initially 0
 
     /*
      * Update servos command
      */
-    b[i++] = PICNIC_PROTO_CMD_WRITE_SERVOS;
-    b[i++] = servo_channels; // Number of channels
+    sb[i++] = PICNIC_PROTO_CMD_WRITE_SERVOS;
+    sb[i++] = servo_channels; // Number of channels
 
     for (int n = 0; n < servo_channels; n++) {
 	if ((state->servo[n].period == 0) || (state->servo[n].pulses == 0)) {
-	    b[i++] = 0;
-	    b[i++] = 0;
-	    b[i++] = (state->servo[n].direction ? 0x80 : 0x00); // Keep direction bit
-	    b[i++] = 0;
+	    sb[i++] = 0;
+	    sb[i++] = 0;
+	    sb[i++] = (state->servo[n].direction ? 0x80 : 0x00); // Keep direction bit
+	    sb[i++] = 0;
 	} else {
 	    uint16_t step_hold = picnic_device_usec_to_ticks(dev, picnic_device_channel_step_hold(dev)) + 1;
 	    uint16_t period = picnic_device_usec_to_ticks(dev, state->servo[n].period);
@@ -100,10 +100,10 @@ int picnic_device_execute(const picnic_device_t *dev, state_t *state, int period
 	    // Period equal to zero means there's no any single pulse to do
 	    period -= step_hold;
 
-	    b[i++] = (period >> 8) & 0xff; // (MSB)
-	    b[i++] = period & 0xff;        // (LSB)
-	    b[i++] = (pulses >> 8) & 0xff;
-	    b[i++] = pulses & 0xff;
+	    sb[i++] = (period >> 8) & 0xff; // (MSB)
+	    sb[i++] = period & 0xff;        // (LSB)
+	    sb[i++] = (pulses >> 8) & 0xff;
+	    sb[i++] = pulses & 0xff;
 	}
     }
     cmd_num++; // Add command
@@ -112,36 +112,40 @@ int picnic_device_execute(const picnic_device_t *dev, state_t *state, int period
      * Update outputs command
      */
     int bank = 0;
-    b[i++] = PICNIC_PROTO_CMD_WRITE_OUTPUTS;
-    b[i++] = bank; // Bank 0
-    b[i++] = (state->outputs[bank] >> 8) & 0xff; // (MSB)
-    b[i++] = state->outputs[bank] & 0xff; // (LSB)
+    sb[i++] = PICNIC_PROTO_CMD_WRITE_OUTPUTS;
+    sb[i++] = bank; // Bank 0
+    sb[i++] = (state->outputs[bank] >> 8) & 0xff; // (MSB)
+    sb[i++] = state->outputs[bank] & 0xff; // (LSB)
     cmd_num++; // Add command
 
     /*
      * Read inputs command
      */
-    b[i++] = PICNIC_PROTO_CMD_READ_INPUTS;
-    b[i++] = 0; // Bank 0
+    sb[i++] = PICNIC_PROTO_CMD_READ_INPUTS;
+    sb[i++] = 0; // Bank 0
+    cmd_num++;
+
+    /* Read current positions */
+    sb[i++] = PICNIC_PROTO_CMD_READ_POSITIONS;
     cmd_num++;
 
     /********************** Send data ************************/
-    b[0] = cmd_num;
-    bytes = write(dev->fd, b, i);
+    sb[0] = cmd_num;
+    bytes = write(dev->fd, sb, i);
     if (bytes < 0) return -1;
 
     /*
      * Read response and parse it
      */
-    bytes = read(dev->fd, b, PICNIC_MAX_RECV);
+    bytes = read(dev->fd, rb, PICNIC_MAX_RECV);
     if (bytes < 0) return -1;
 
     // Error when received non-zero second byte - it's error code
     unsigned short int error = 0;
     int byte = 0;
     for (int cmd = 0; cmd < cmd_num; cmd++) {
-	int cmd_code = b[byte++];
-	int status_code = b[byte++];
+	int cmd_code = rb[byte++];
+	int status_code = rb[byte++];
 	if (status_code != 0) {
 	    printf("Write command %02X received error (%d bytes): %02X\n", cmd_code, bytes, status_code);
 	    error = 1;
@@ -151,7 +155,13 @@ int picnic_device_execute(const picnic_device_t *dev, state_t *state, int period
 		case PICNIC_PROTO_CMD_WRITE_SERVOS:
 		    break;
 		case PICNIC_PROTO_CMD_READ_INPUTS:
-		    byte += 3; // 3 bytes in response (bank number + 2 bytes of values)
+		    byte += 3; // Ignore for now: 3 bytes in response (bank number + 2 bytes of values)
+		    break;
+		case PICNIC_PROTO_CMD_READ_POSITIONS:
+		    int servos = rb[byte++];
+		    for (int n = 0; n < servos; n++) {
+			state->positions[n] = (rb[byte++] << 24 & 0xFF000000) | (rb[byte++] << 16 & 0xFF0000) | (rb[byte++] << 8 & 0xFF00) | (rb[byte++] & 0xFF);
+		    }
 		    break;
 		default:
 		    printf("Command %02X is unknown in response\n", cmd);
@@ -169,6 +179,58 @@ int picnic_device_execute(const picnic_device_t *dev, state_t *state, int period
     for (int n = 0; n < servo_channels; n++) {
 	state->servo[n].period = 0;
 	state->servo[n].pulses = 0;
+    }
+
+    if (error) return -1;
+
+    return 0;
+}
+
+int picnic_device_read_position(const picnic_device_t *dev, state_t *state) {
+    int i = 0, bytes = 0;
+    uint8_t sb[PICNIC_MAX_SEND], rb[PICNIC_MAX_RECV];
+    int cmd_num = 0;
+    if (dev->fd == 0) return -1;
+
+    sb[i++] = 0; // Number of commands in send initially 0
+
+    /* Read current positions */
+    sb[i++] = PICNIC_PROTO_CMD_READ_POSITIONS;
+    cmd_num++;
+
+    /********************** Send data ************************/
+    sb[0] = cmd_num;
+    bytes = write(dev->fd, sb, i);
+    if (bytes < 0) return -1;
+
+    /*
+     * Read response and parse it
+     */
+    bytes = read(dev->fd, rb, PICNIC_MAX_RECV);
+    if (bytes < 0) return -1;
+
+    unsigned short int error = 0;
+    int byte = 0;
+    for (int cmd = 0; cmd < cmd_num; cmd++) {
+	int cmd_code = rb[byte++];
+	int status_code = rb[byte++];
+	if (status_code != 0) {
+	    printf("Write command %02X received error (%d bytes): %02X\n", cmd_code, bytes, status_code);
+	    error = 1;
+	} else {
+	    switch (cmd_code) {
+		case PICNIC_PROTO_CMD_READ_POSITIONS:
+		    int servos = rb[byte++];
+		    for (int n = 0; n < servos; n++) {
+			state->positions[n] = (rb[byte++] << 24 & 0xFF000000) | (rb[byte++] << 16 & 0xFF0000) | (rb[byte++] << 8 & 0xFF00) | (rb[byte++] & 0xFF);
+		    }
+		    break;
+		default: break;
+	    }
+	}
+
+	// Abort parsing response - it can't be correct anyway.
+	if (error) break;
     }
 
     if (error) return -1;

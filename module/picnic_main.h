@@ -19,11 +19,14 @@ typedef struct picnic_t {
     int pulse_buffer_empty_irq;
     int data_mode; // 0 - input, 1 - output
 
-    __u8 channels;
+
     volatile __u8 busy;
 
     /* Capabilities */
     picnic_caps_t caps;
+
+    /* Current servo positions */
+    __s32 *servo_positions;
 } picnic_t;
 
 int picnic_probe(struct platform_device *pdev);

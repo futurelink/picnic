@@ -14,6 +14,7 @@
 #include "picnic_main.h"
 #include "picnic_dev.h"
 
+extern picnic_t *picnc;
 extern picnic_dev_t *picnic_dev;
 
 /****************************************************************************
@@ -50,6 +51,7 @@ static int __init picnic_init(void) {
 }
 
 static void __exit picnic_exit(void) {
+    if(picnc->servo_positions != 0) kfree(picnc->servo_positions);
     if(picnic_dev != 0) picnic_device_deinit(picnic_dev);
     platform_driver_unregister(&picnic_driver);
     printk(KERN_INFO "%s; PiCNC driver unloaded\n", MODULE_NAME);

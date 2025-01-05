@@ -28,6 +28,7 @@ typedef struct picnic_dev_caps_t {
 
     __u16 dir_hold_addr;
     __u16 step_hold_addr;
+    __u8 servo_holds_position;
 } picnic_caps_t;
 
 int picnic_caps_init(__u16 device_id, picnic_caps_t *caps);

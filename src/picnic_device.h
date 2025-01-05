@@ -13,7 +13,7 @@ picnic_device_t *picnic_device_init(const char *dev_file);
 void picnic_device_free(picnic_device_t *dev);
 
 int picnic_get_device_id(const picnic_device_t *dev);
-
+int picnic_device_read_position(const picnic_device_t *dev, state_t *state);
 uint8_t picnic_device_get_servo_channels(const picnic_device_t *dev, uint8_t *value);
 uint8_t picnic_device_get_pwm_channels(const picnic_device_t *dev, uint8_t *value);
 uint8_t picnic_device_get_encoder_channels(const picnic_device_t *dev, uint8_t *value);

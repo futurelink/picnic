@@ -39,7 +39,8 @@ int main(void) {
     // Read inputs
     b[0] = 1;
     b[1] = PICNIC_PROTO_CMD_READ_INPUTS;
-    write(fd, b, 2);
+    b[2] = 0; // Bank number
+    write(fd, b, 3);
     bytes = read(fd, b, 10);
     str = bytes_to_str(b, bytes);
     printf("INPUTS received (%d bytes): %s\n", bytes, str);
@@ -108,8 +109,18 @@ int main(void) {
     printf("READ STEP HOLD received (%d bytes): %s\n", bytes, str);
     free(str);
 
+    b[0] = 1;
+    b[1] = PICNIC_PROTO_CMD_READ_POSITIONS;
+    write(fd, b, 2);
+    bytes = read(fd, b, 32);
+    str = bytes_to_str(b, bytes);
+    printf("READ POSITIONS received (%d bytes): %s\n", bytes, str);
+    free(str);
+
+    return 0;
+
     int n = 0;
-    for (n = 0; n < 50; n++) {
+    for (n = 0; n < 200; n++) {
 
 	for (int i = 0; i < 10; i++) {
 	    // Write outputs

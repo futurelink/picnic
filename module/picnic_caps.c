@@ -7,6 +7,7 @@ static const picnic_caps_t device_caps[PICNIC_DEVICES_N] = {
 	.id = 0x0001,
 	.servo_channels = 4,
 	.servo_channel_addrs = { 0x0008, 0x0010, 0x0018, 0x0020 },
+	.servo_holds_position = 0,
 	.pwm_channels = 0,
 	.encoder_channels = 0,
 	.input_banks = 1,

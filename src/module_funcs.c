@@ -44,6 +44,9 @@ void update_state(void *arg, long period) {
 
 #ifdef CONNECTION_DEVICE
         if (module->device != 0) picnic_device_execute(module->device, module->state, period);
+	for (int i = 0; i < module->state->config.servo_channels; i++) {
+	    *(module->servo[i].pos_fb_steps) = module->state->positions[i];
+	}
 #endif
 
 #if defined(CONNECTION_NETWORK) || defined(CONNECTION_USART)
@@ -90,7 +93,19 @@ void update_feedback(void *arg, long period) {
     // then we need to update commanded position
     // with feedback values on initialization.
     if (!module->state->initialized) {
+#ifdef CONNECTION_DEVICE
+	// Kernel driver always holds position
+	// So this part reads positions from driver and
+	// converts to units.
+	if (picnic_device_read_position(module->device, module->state) == 0) {
+	    for (int i = 0; i < module->state->config.servo_channels; i++) {
+		*(module->servo[i].pos_fb_steps) = module->state->positions[i];
+	    }
+	    initialize_position(module);
+	}
+#else
 	if (module->state->config.has_feedback) initialize_position(module);
+#endif
 
 #ifdef CONNECTION_GPIO
 	gpio_command_buffer_init();
@@ -194,7 +209,7 @@ uint8_t inline update_servos(module_t *module, long period_ns) {
             servo_state->period = (float)(period_ns + servo_state->period_error * 1000.0f) / (1000.0f * labs(pos_cmd_delta_steps));
 
             // Assume feedback (steps / scale), although real feedback can be received from controller device.
-            if (!module->state->config.has_feedback) *(servo->pos_fb_steps) += pos_cmd_delta_steps;
+            //if (!module->state->config.has_feedback) *(servo->pos_fb_steps) += pos_cmd_delta_steps;
 
             // Calculate new error value, (delta in units - delta in steps / scale)
             // Generally the error is length in units which can't be moved with one step as
