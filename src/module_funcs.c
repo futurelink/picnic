@@ -43,27 +43,34 @@ void update_state(void *arg, long period) {
 	}
 
 #ifdef CONNECTION_DEVICE
-        if (module->device != 0) picnic_device_execute(module->device, module->state, period);
-	for (int i = 0; i < module->state->config.servo_channels; i++) {
-	    *(module->servo[i].pos_fb_steps) = module->state->positions[i];
+	// Communication is established via kernel space driver
+        if (module->device != 0) {
+	    if (picnic_device_execute(module->device, module->state, period) == 0) {
+		for (int i = 0; i < module->state->config.servo_channels; i++) {
+		    *(module->servo[i].pos_fb_steps) = module->state->positions[i];
+		}
+	    } else {
+		// Error appeared - disable module immediately!
+		*(module->enable) = 0;
+	    }
 	}
 #endif
 
 #if defined(CONNECTION_NETWORK) || defined(CONNECTION_USART)
+	// Communication is established via network interface
         if (updated) write_output_buffer(module);   // Write state data to send buffer
         else {                                      // Request state only, because nothing changed
             state->send_buffer[0] = 0x00;
             state->send_len = 1;
         }
-#endif
-
 #ifdef CONNECTION_NETWORK
         if (module->network) network_send(module->network, state);	// Send data via network
 #endif
-
 #ifdef CONNECTION_USART
         if (module->usart) usart_send(module->usart, state);		// Send data via USART
 #endif
+#endif
+
     } else {
         reset_position(module);
     }
@@ -105,11 +112,6 @@ void update_feedback(void *arg, long period) {
 	}
 #else
 	if (module->state->config.has_feedback) initialize_position(module);
-#endif
-
-#ifdef CONNECTION_GPIO
-	gpio_command_buffer_init();
-	gpio_update_step_dir_hold(module);
 #endif
 
 	module->state->initialized = true;
@@ -207,9 +209,6 @@ uint8_t inline update_servos(module_t *module, long period_ns) {
             // (thread period in nanoseconds / steps count / 1000 = step period in microseconds)
             servo_state->pulses = labs(pos_cmd_delta_steps);
             servo_state->period = (float)(period_ns + servo_state->period_error * 1000.0f) / (1000.0f * labs(pos_cmd_delta_steps));
-
-            // Assume feedback (steps / scale), although real feedback can be received from controller device.
-            //if (!module->state->config.has_feedback) *(servo->pos_fb_steps) += pos_cmd_delta_steps;
 
             // Calculate new error value, (delta in units - delta in steps / scale)
             // Generally the error is length in units which can't be moved with one step as

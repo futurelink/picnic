@@ -171,13 +171,6 @@ int picnic_probe(struct platform_device *pdev) {
 	return -EINVAL;
     }
 
-    // Initialize device
-    picnic_dev = picnic_device_init();
-    if (picnic_dev == 0) {
-	printk(KERN_ERR "%s: Unable to initialize device in /dev\n", MODULE_NAME);
-	return ret;
-    }
-
     // Set data lines for input
     picnic_data_bus_set_input();
 
@@ -211,6 +204,13 @@ int picnic_probe(struct platform_device *pdev) {
     // Write outputs set all to 'off' state
     for (int i = 0; i < picnc->caps.output_banks; i++) {
 	picnic_write_register(picnc->caps.output_addrs[i], 0x0);
+    }
+
+    // Initialize device
+    picnic_dev = picnic_device_init();
+    if (picnic_dev == 0) {
+	printk(KERN_ERR "%s: Unable to initialize device in /dev\n", MODULE_NAME);
+	return ret;
     }
 
     return 0;

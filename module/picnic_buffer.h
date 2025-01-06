@@ -33,5 +33,6 @@ picnic_state_t picnic_buffer_pull(picnic_buffer_t *buffer);
 picnic_state_t picnic_buffer_get(picnic_buffer_t *buffer);
 void picnic_buffer_update(picnic_buffer_t *buffer, picnic_state_t st);
 void picnic_buffer_next(picnic_buffer_t *buffer);
+__u8 picnic_buffer_get_utilization(picnic_buffer_t *buffer);
 
 #endif

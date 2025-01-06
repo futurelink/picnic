@@ -49,3 +49,8 @@ void picnic_buffer_next(picnic_buffer_t *buffer) {
     if (next == PICNIC_BUFFER_LEN) next = 0;
     buffer->tail = next;
 }
+
+__u8 picnic_buffer_get_utilization(picnic_buffer_t *buffer) {
+    if (buffer->head == buffer->tail) return 0;
+    return (buffer->head > buffer->tail) ? buffer->head - buffer->tail : PICNIC_BUFFER_LEN - (buffer->tail - buffer->head);
+}
