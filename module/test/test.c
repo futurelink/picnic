@@ -160,7 +160,7 @@ int main(void) {
 //    return 0;
 
     int n = 0;
-    for (n = 0; n < 10; n++) {
+    for (n = 0; n < 200; n++) {
 
 	for (int i = 0; i < 10; i++) {
 	    // Write outputs
