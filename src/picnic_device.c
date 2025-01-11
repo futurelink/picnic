@@ -97,8 +97,9 @@ int picnic_get_device_id(const picnic_device_t *d) {
 int picnic_device_execute(const picnic_device_t *dev, state_t *state, int period_ns) {
     int i = 0, i_prev = 0, bytes = 0;
     uint8_t sb[PICNIC_MAX_SEND], rb[PICNIC_MAX_RECV];
-    int servo_channels = state->config.servo_channels;
-    int output_banks = (int)ceil(state->config.output_channels / 16);
+    uint8_t servo_channels = state->config.servo_channels;
+    uint8_t output_banks = (int)ceil(state->config.output_channels / 16);
+
     int cmd_num = 0;
     if (dev->fd == 0) return -1;
 
@@ -110,27 +111,26 @@ int picnic_device_execute(const picnic_device_t *dev, state_t *state, int period
     i_prev = i;
     sb[i++] = PICNIC_PROTO_CMD_WRITE_SERVOS;
     for (int n = 0; n < servo_channels; n++) {
+	// Period equal to zero means there's no any single pulse to do
 	if ((state->servo[n].period == 0) || (state->servo[n].pulses == 0)) {
 	    sb[i++] = 0;
 	    sb[i++] = 0;
 	    sb[i++] = (state->servo[n].direction ? 0x80 : 0x00); // Keep direction bit
 	    sb[i++] = 0;
 	} else {
-	    uint16_t step_hold = picnic_device_usec_to_ticks(dev, picnic_device_channel_step_hold(dev)) + 1;
-	    uint16_t period = picnic_device_usec_to_ticks(dev, state->servo[n].period);
+	    uint8_t step_hold = picnic_device_usec_to_ticks(dev, state->servo[n].step_hold);
+	    uint16_t period = picnic_device_usec_to_ticks(dev, state->servo[n].period - state->servo[n].step_hold);
 	    uint16_t pulses = state->servo[n].pulses | (state->servo[n].direction ? 0x8000 : 0x0000);
 
 	    // Save period error in nanoseconds to avoid syncronization bias
 	    // when pulses to count is not zero
 	    if (state->servo[n].pulses != 0) {
-	        state->servo[n].period_error = (period_ns / 1000.0f) - picnic_device_ticks_to_usec(dev, period * state->servo[n].pulses);
+	        state->servo[n].period_error = (period_ns / 1000.0f) - picnic_device_ticks_to_usec(dev, (period + step_hold) * state->servo[n].pulses);
 	    } else {
 	        state->servo[n].period_error = 0;
 	    }
 
-	    // Period equal to zero means there's no any single pulse to do
-	    period -= step_hold;
-
+	    period -= 1;
 	    sb[i++] = (period >> 8) & 0xff; // (MSB)
 	    sb[i++] = period & 0xff;        // (LSB)
 	    sb[i++] = (pulses >> 8) & 0xff;
@@ -342,12 +342,12 @@ uint8_t picnic_device_holds_positions(const picnic_device_t *dev) {
     return 0; // Device is not capable of storing and calculating positions
 }
 
-float picnic_device_channel_dir_hold(const picnic_device_t *dev) {
+uint8_t picnic_device_per_channel_dir_hold(const picnic_device_t *dev) {
     return 0; // Per-servo dir hold is not supported
 }
 
-float picnic_device_channel_step_hold(const picnic_device_t *dev) {
-    return 2.5 + 0.125; // Per-servo step hold is not supported
+uint8_t picnic_device_per_channel_step_hold(const picnic_device_t *dev) {
+    return 0; // Per-servo step hold is not supported
 }
 
 unsigned long picnic_device_frequency(const picnic_device_t *dev) {

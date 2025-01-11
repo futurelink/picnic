@@ -8,6 +8,7 @@
  *************************/
 
 typedef struct {
+    volatile float      step_hold;
     volatile bool       direction;  // Sent direction
     volatile uint16_t   pulses;     // Sent pulses count
     volatile float      period;     // Sent period

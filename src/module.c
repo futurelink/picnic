@@ -385,7 +385,6 @@ static int export_pwms() {
 }
 
 static int export_servo(int num, servo_t *servo) {
-
     int retval = 0;
 
      /* export pin for enable command */
@@ -408,27 +407,30 @@ static int export_servo(int num, servo_t *servo) {
     retval = hal_pin_s32_newf(HAL_OUT, &(servo->pos_fb_steps), comp_id, "%s.servo.%d.position-fb-steps", MODULE_NAME, num);
     if (retval != 0) return retval;
 
-    /* export param DIR hold interval in microseconds */
-    if (picnic_device_channel_dir_hold(module->device)) {
+    /* export param DIR hold interval in microseconds if device supports per-channel dit hold */
+    if (picnic_device_per_channel_dir_hold(module->device)) {
 	retval = hal_param_float_newf(HAL_RW, &(servo->dir_hold), comp_id, "%s.servo.%d.dir-hold", MODULE_NAME, num);
 	if (retval != 0) return retval;
-	servo->dir_hold = 2.5; // Default value
     } else {
-	servo->dir_hold = 0;
+	if (module->dir_hold > 0) servo->dir_hold = module->dir_hold;
+	else servo->dir_hold = 2.6; // Default value
     }
 
     /* export param DIR signal is inverted */
     retval = hal_param_bit_newf(HAL_RW, &(servo->dir_active_low), comp_id, "%s.servo.%d.dir-active-low", MODULE_NAME, num);
     if (retval != 0) return retval;
 
-    /* export param STEP hold interval in microseconds */
-    if (picnic_device_channel_step_hold(module->device)) {
+    /* export param STEP hold interval in microseconds if device supports per-channel step hold */
+    if (picnic_device_per_channel_step_hold(module->device)) {
 	retval = hal_param_float_newf(HAL_RW, &(servo->step_hold), comp_id, "%s.servo.%d.step-hold", MODULE_NAME, num);
 	if (retval != 0) return retval;
-	servo->step_hold = 2.5; // Default value
     } else {
-	servo->step_hold = 0;
+	if (module->step_hold > 0) servo->step_hold = module->step_hold;
+	else servo->step_hold = 2.6; // Default value
     }
+
+    rtapi_print_msg(RTAPI_MSG_INFO, "%s: STEP hold on channel %d: %f\n", MODULE_NAME, num, servo->step_hold);
+    rtapi_print_msg(RTAPI_MSG_INFO, "%s: DIR hold on channel %d: %f\n", MODULE_NAME, num, servo->step_hold);
 
     /* export param STEP signal is inverted */
     retval = hal_param_bit_newf(HAL_RW, &(servo->step_active_low), comp_id, "%s.servo.%d.step-active-low", MODULE_NAME, num);

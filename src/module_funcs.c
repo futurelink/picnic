@@ -31,17 +31,8 @@ void update_state(void *arg, long period) {
     uint8_t updated = 0;
     if (*(module->enable)) {
 
-        recalculate_feedback(module);       // Recalculate feedback from steps to units (needs FP)
-
-        updated = update_servos(module, period);          // Update servos state
-        updated = update_pwms(module, period) | updated;  // Update PWMs state
-
-	// Update outputs in state
-	int bank = 0;
-	for (int i = 0; i < 16; i++) {
-	    module->state->outputs[bank] = (*(module->outputs[i]) << i);
-	}
-
+// Buffer execution goes first so that buffer always has value.
+// This is needed to prevent buffer emptiness.
 #ifdef CONNECTION_DEVICE
 	// Communication is established via kernel space driver
         if (module->device != 0) {
@@ -55,6 +46,18 @@ void update_state(void *arg, long period) {
 	    }
 	}
 #endif
+
+        recalculate_feedback(module);       // Recalculate feedback from steps to units (needs FP)
+
+        updated = update_servos(module, period);          // Update servos state
+        updated = update_pwms(module, period) | updated;  // Update PWMs state
+
+	// Update outputs in state
+	int bank = 0;
+	for (int i = 0; i < 16; i++) {
+	    module->state->outputs[bank] = (*(module->outputs[i]) << i);
+	}
+
 
 #if defined(CONNECTION_NETWORK) || defined(CONNECTION_USART)
 	// Communication is established via network interface
@@ -101,7 +104,7 @@ void update_feedback(void *arg, long period) {
     // with feedback values on initialization.
     if (!module->state->initialized) {
 #ifdef CONNECTION_DEVICE
-	// Kernel driver always holds position
+	// Kernel driver always has position in steps.
 	// So this part reads positions from driver and
 	// converts to units.
 	if (picnic_device_read_position(module->device, module->state) == 0) {
@@ -201,7 +204,7 @@ uint8_t inline update_servos(module_t *module, long period_ns) {
             // is allowed as usually direction change starts from a few
             // first pulses of accelerated movement.
             if (servo_state->direction != direction) { // If direction changes then subtract DIR hold time
-                servo_state->period -= module->servo->dir_hold / servo_state->pulses;
+                servo_state->period -= (servo->dir_hold / servo_state->pulses);
                 servo_state->direction = direction;
             }
 
@@ -209,6 +212,7 @@ uint8_t inline update_servos(module_t *module, long period_ns) {
             // (thread period in nanoseconds / steps count / 1000 = step period in microseconds)
             servo_state->pulses = labs(pos_cmd_delta_steps);
             servo_state->period = (float)(period_ns + servo_state->period_error * 1000.0f) / (1000.0f * labs(pos_cmd_delta_steps));
+            servo_state->step_hold = servo->step_hold;
 
             // Calculate new error value, (delta in units - delta in steps / scale)
             // Generally the error is length in units which can't be moved with one step as

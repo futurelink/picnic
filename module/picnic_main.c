@@ -213,6 +213,8 @@ int picnic_probe(struct platform_device *pdev) {
 	return ret;
     }
 
+    printk(KERN_INFO "%s: PiCNC device probe successful\n", MODULE_NAME);
+
     return 0;
 }
 
