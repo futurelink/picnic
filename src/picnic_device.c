@@ -7,9 +7,10 @@
 #include <string.h>
 
 #include "hal.h"
-
-#include "../module/picnic_const.h"
+#include "module.h"
 #include "picnic_device.h"
+
+#include "../module/picnic_proto_const.h"
 
 #define PICNIC_MAX_SEND 128
 #define PICNIC_MAX_RECV 128
@@ -48,11 +49,17 @@ picnic_device_t *picnic_device_init(const char *dev_file) {
 
     d->fd = open(dev_file, O_RDWR | O_NONBLOCK);
     if (d->fd < 0) {
-	printf("PiCNC device communication error: %d\n", d->fd);
+	rtapi_print_msg(RTAPI_MSG_ERR, "%s: device communication error: %d\n", MODULE_NAME, d->fd);
 	return 0;
     }
 
-    printf("PiCNC device communication instantiated via %s\n", dev_file);
+    uint8_t ret = picnic_get_device_frequency(d, &d->carry_freq);
+    if (ret != 0) {
+	rtapi_print_msg(RTAPI_MSG_ERR, "%s: could not get device carry frequency: %d\n", MODULE_NAME, ret);
+	return 0;
+    }
+
+    rtapi_print_msg(RTAPI_MSG_INFO, "%s: device communication instantiated via %s\n", MODULE_NAME, dev_file);
 
     return d;
 }
@@ -71,20 +78,20 @@ int picnic_get_device_id(const picnic_device_t *d) {
     data[2] = crc8(data+1, 1);
     bytes = write(d->fd, data, 3);
     if (bytes < 0) {
-	printf("PiCNC: error writing to device: %s\n", strerror(errno));
+	rtapi_print_msg(RTAPI_MSG_ERR, "%s: error writing to device: %s\n", MODULE_NAME, strerror(errno));
 	return -1;
     }
 
     bytes = read(d->fd, data, 10);
     if (bytes < 0) {
-	printf("PiCNC: error reading from device: %s\n", strerror(errno));
+	rtapi_print_msg(RTAPI_MSG_ERR, "%s: error reading from device: %s\n", MODULE_NAME, strerror(errno));
 	return -1;
     } else if ((bytes != 4) || (data[1] != 0)) {
-	printf("PiCNC device communication error, can't get device ID. Received %d bytes\n", bytes);
+	rtapi_print_msg(RTAPI_MSG_ERR, "%s: device communication error, can't get device ID. Received %d bytes\n", MODULE_NAME, bytes);
 	return -1;
     }
 
-    printf("PiCNC DEVICE_ID received (%d bytes): 0x%02X%02X\n", bytes, data[3], data[2]);
+    rtapi_print_msg(RTAPI_MSG_INFO, "%s: DEVICE_ID received (%d bytes): 0x%02X%02X\n", MODULE_NAME, bytes, data[2], data[3]);
 
     return 0;
 }
@@ -186,7 +193,7 @@ int picnic_device_execute(const picnic_device_t *dev, state_t *state, int period
 	int cmd_code = rb[byte++];
 	int status_code = rb[byte++];
 	if (status_code != 0) {
-	    printf("Write command %02X received error (%d bytes): %02X\n", cmd_code, bytes, status_code);
+	    rtapi_print_msg(RTAPI_MSG_ERR, "%s: write command %02X received error (%d bytes): %02X\n", MODULE_NAME, cmd_code, bytes, status_code);
 	    error = 1;
 	} else {
 	    switch (cmd_code) {
@@ -203,7 +210,7 @@ int picnic_device_execute(const picnic_device_t *dev, state_t *state, int period
 		    }
 		    break;
 		default:
-		    printf("Command %02X is unknown in response\n", cmd);
+		    rtapi_print_msg(RTAPI_MSG_ERR, "%s: command %02X is unknown in response\n", MODULE_NAME, cmd);
 		    error = 1;
 		    break;
 	    }
@@ -255,7 +262,7 @@ int picnic_device_read_position(const picnic_device_t *dev, state_t *state) {
 	int cmd_code = rb[byte++];
 	int status_code = rb[byte++];
 	if (status_code != 0) {
-	    printf("Write command %02X received error (%d bytes): %02X\n", cmd_code, bytes, status_code);
+	    rtapi_print_msg(RTAPI_MSG_ERR, "%s: write command %02X received error (%d bytes): %02X\n", MODULE_NAME, cmd_code, bytes, status_code);
 	    error = 1;
 	} else {
 	    switch (cmd_code) {
@@ -279,9 +286,45 @@ int picnic_device_read_position(const picnic_device_t *dev, state_t *state) {
 }
 
 /*
+ * Send STEP hold value to the device.
+ */
+int picnic_device_write_step_hold(const picnic_device_t *dev, float step_hold_usec) {
+    uint8_t value = picnic_device_usec_to_ticks(dev, step_hold_usec);
+    uint8_t cmd[] = { 1, PICNIC_PROTO_CMD_WRITE_STEP_HOLD, 0x00, value, 0x00 };
+    cmd[4] = crc8(cmd+1, 3);
+    int bytes = write(dev->fd, cmd, 5);
+    if (bytes < 0) return -1;
+
+    uint8_t resp[PICNIC_MAX_RECV];
+    bytes = read(dev->fd, resp, PICNIC_MAX_RECV);
+    if (bytes < 0) return -1;
+
+    if ((resp[0] == PICNIC_PROTO_CMD_WRITE_STEP_HOLD) && (resp[1] == 0)) return 0;
+    return resp[1];
+}
+
+/*
+ * Send DIR hold value to the device.
+ */
+int picnic_device_write_dir_hold(const picnic_device_t *dev, float dir_hold_usec) {
+    uint8_t value = picnic_device_usec_to_ticks(dev, dir_hold_usec);
+    uint8_t cmd[] = { 1, PICNIC_PROTO_CMD_WRITE_DIR_HOLD, 0x00, value, 0x00 };
+    cmd[4] = crc8(cmd+1, 3);
+    int bytes = write(dev->fd, cmd, 5);
+    if (bytes < 0) return -1;
+
+    uint8_t resp[PICNIC_MAX_RECV];
+    bytes = read(dev->fd, resp, PICNIC_MAX_RECV);
+    if (bytes < 0) return -1;
+
+    if ((resp[0] == PICNIC_PROTO_CMD_WRITE_DIR_HOLD) && (resp[1] == 0)) return 0;
+    return resp[1];
+}
+
+/*
  * Reads setting value from kernel space driver
  */
-static uint8_t read_setting(const picnic_device_t *dev, uint8_t setting, uint8_t *value) {
+static uint8_t read_setting(const picnic_device_t *dev, uint8_t setting, uint16_t *value) {
     uint8_t cmd[] = { 1, PICNIC_PROTO_CMD_READ_SETTINGS, setting, 0x00 };
     cmd[3] = crc8(cmd+1, 2);
     int bytes = write(dev->fd, cmd, 4);
@@ -291,8 +334,9 @@ static uint8_t read_setting(const picnic_device_t *dev, uint8_t setting, uint8_t
     bytes = read(dev->fd, resp, PICNIC_MAX_RECV);
     if (bytes < 0) return -1;
 
+    uint16_t v = 0;
     if ((resp[0] == PICNIC_PROTO_CMD_READ_SETTINGS) && (resp[1] == 0)) {
-	*value = resp[2];
+	*value = (resp[2] << 8) | resp[3];
 	return 0;
     }
     return resp[1];
@@ -302,7 +346,7 @@ static uint8_t read_setting(const picnic_device_t *dev, uint8_t setting, uint8_t
  * Get number of servo channels from driver.
  * Function interfaces module configuration - should not be called from realtime loop.
  */
-uint8_t picnic_device_get_servo_channels(const picnic_device_t *dev, uint8_t *value) {
+uint8_t picnic_device_get_servo_channels(const picnic_device_t *dev, uint16_t *value) {
     return read_setting(dev, PICNIC_PROTO_CMD_READ_SETTING_SERVO_CHANNELS, value);
 }
 
@@ -310,7 +354,7 @@ uint8_t picnic_device_get_servo_channels(const picnic_device_t *dev, uint8_t *va
  * Get number of PWM channels from driver.
  * Function interfaces module configuration - should not be called from realtime loop.
  */
-uint8_t picnic_device_get_pwm_channels(const picnic_device_t *dev, uint8_t *value) {
+uint8_t picnic_device_get_pwm_channels(const picnic_device_t *dev, uint16_t *value) {
     return read_setting(dev, PICNIC_PROTO_CMD_READ_SETTING_PWM_CHANNELS, value);
 }
 
@@ -318,7 +362,7 @@ uint8_t picnic_device_get_pwm_channels(const picnic_device_t *dev, uint8_t *valu
  * Get number of encoder channels from driver.
  * Function interfaces module configuration - should not be called from realtime loop.
  */
-uint8_t picnic_device_get_encoder_channels(const picnic_device_t *dev, uint8_t *value) {
+uint8_t picnic_device_get_encoder_channels(const picnic_device_t *dev, uint16_t *value) {
     return read_setting(dev, PICNIC_PROTO_CMD_READ_SETTING_ENCODER_CHANNELS, value);
 }
 
@@ -326,7 +370,7 @@ uint8_t picnic_device_get_encoder_channels(const picnic_device_t *dev, uint8_t *
  * Get number of input channels from driver.
  * Function interfaces module configuration - should not be called from realtime loop.
  */
-uint8_t picnic_device_get_input_channels(const picnic_device_t *dev, uint8_t *value) {
+uint8_t picnic_device_get_input_channels(const picnic_device_t *dev, uint16_t *value) {
     return read_setting(dev, PICNIC_PROTO_CMD_READ_SETTING_INPUTS, value);
 }
 
@@ -334,8 +378,17 @@ uint8_t picnic_device_get_input_channels(const picnic_device_t *dev, uint8_t *va
  * Get number of output channels from driver.
  * Function interfaces module configuration - should not be called from realtime loop.
  */
-uint8_t picnic_device_get_output_channels(const picnic_device_t *dev, uint8_t *value) {
+uint8_t picnic_device_get_output_channels(const picnic_device_t *dev, uint16_t *value) {
     return read_setting(dev, PICNIC_PROTO_CMD_READ_SETTING_OUTPUTS, value);
+}
+
+uint8_t picnic_get_device_frequency(const picnic_device_t *dev, uint32_t *value) {
+    uint16_t rv = 0;
+    uint8_t ret = read_setting(dev, PICNIC_PROTO_CMD_READ_SETTING_CARRY_FREQUENCY, &rv);
+    if (ret != 0)  return ret;
+
+    *value = rv * 1000;
+    return 0;
 }
 
 uint8_t picnic_device_holds_positions(const picnic_device_t *dev) {
@@ -350,14 +403,10 @@ uint8_t picnic_device_per_channel_step_hold(const picnic_device_t *dev) {
     return 0; // Per-servo step hold is not supported
 }
 
-unsigned long picnic_device_frequency(const picnic_device_t *dev) {
-    return 5000000UL; // 5MHz
-}
-
 uint16_t picnic_device_usec_to_ticks(const picnic_device_t *dev, float usec) {
-    return roundf(usec * ((float) picnic_device_frequency(dev) / 1000000.0f));
+    return roundf(usec * ((float) dev->carry_freq / 1000000.0f));
 }
 
 float picnic_device_ticks_to_usec(const picnic_device_t *dev, uint16_t ticks) {
-    return ticks / ((float) picnic_device_frequency(dev) / 1000000.0f);
+    return ticks / ((float) dev->carry_freq / 1000000.0f);
 }

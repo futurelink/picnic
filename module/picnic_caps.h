@@ -13,12 +13,13 @@
 
 /* Device capabilities structure */
 typedef struct picnic_dev_caps_t {
-    __u16 id; /* Device ID */
-    __u8 servo_channels; /* Number of servo channels */
-    __u8 pwm_channels; /* Number of PWM generation channels */
+    __u16 id;              /* Device ID */
+    __u16 carry_freq;      /* Pulse generator carry frequency */
+    __u8 servo_channels;   /* Number of servo channels */
+    __u8 pwm_channels;     /* Number of PWM generation channels */
     __u8 encoder_channels; /* Number of encoder channels */
-    __u8 input_banks; /* Number of input groups (16 pins in group) */
-    __u8 output_banks; /* Numbber of output groups (16 pins in group) */
+    __u8 input_banks;      /* Number of input groups (16 pins in group) */
+    __u8 output_banks;     /* Numbber of output groups (16 pins in group) */
 
     __u16 servo_channel_addrs[PICNIC_MAX_SERVO_CHANNELS];
     __u16 pwm_channel_addrs[PICNIC_MAX_PWM_CHANNELS];
@@ -29,6 +30,7 @@ typedef struct picnic_dev_caps_t {
     __u16 dir_hold_addr;
     __u16 step_hold_addr;
     __u8 servo_holds_position;
+
 } picnic_caps_t;
 
 int picnic_caps_init(__u16 device_id, picnic_caps_t *caps);

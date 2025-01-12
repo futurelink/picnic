@@ -248,23 +248,28 @@ void dev_exec_command(const char *buffer, __u8 *recv_offset, __u8 *send_offset, 
 	    switch (setting) {
 		case PICNIC_PROTO_CMD_READ_SETTING_SERVO_CHANNELS: // Servo channels number
 		    picnic_send_ok(cmd, &send_offset_t);
+		    picnic_dev->send_buffer[send_offset_t++] = 0x00;
 		    picnic_dev->send_buffer[send_offset_t++] = picnc->caps.servo_channels;
 		    break;
 		case PICNIC_PROTO_CMD_READ_SETTING_PWM_CHANNELS: // PWM channels number
 		    picnic_send_ok(cmd, &send_offset_t);
+		    picnic_dev->send_buffer[send_offset_t++] = 0x00;
 		    picnic_dev->send_buffer[send_offset_t++] = picnc->caps.pwm_channels;
 		    break;
 		case PICNIC_PROTO_CMD_READ_SETTING_OUTPUTS: // Outputs count (x16 per bank)
 		    picnic_send_ok(cmd, &send_offset_t);
+		    picnic_dev->send_buffer[send_offset_t++] = 0x00;
 		    picnic_dev->send_buffer[send_offset_t++] = picnc->caps.output_banks * 16;
 		    break;
 		case PICNIC_PROTO_CMD_READ_SETTING_INPUTS: // Inputs count (x16 per bank)
 		    picnic_send_ok(cmd, &send_offset_t);
+		    picnic_dev->send_buffer[send_offset_t++] = 0x00;
 		    picnic_dev->send_buffer[send_offset_t++] = picnc->caps.input_banks * 16;
 		    break;
 		case PICNIC_PROTO_CMD_READ_SETTING_DIR_HOLD: // DIR hold in ticks
 		    if (picnic_read_register(picnc->caps.dir_hold_addr, &v) == 0) {
 			picnic_send_ok(cmd, &send_offset_t);
+			picnic_dev->send_buffer[send_offset_t++] = 0x00;
 			picnic_dev->send_buffer[send_offset_t++] = v;
 		    } else {
 			picnic_send_status(cmd, &send_offset_t, 0xFF); // DIR hold can't be FF (255) so this is treated as error
@@ -273,11 +278,18 @@ void dev_exec_command(const char *buffer, __u8 *recv_offset, __u8 *send_offset, 
 		case PICNIC_PROTO_CMD_READ_SETTING_STEP_HOLD: // STEP hold in ticks
 		    if (picnic_read_register(picnc->caps.step_hold_addr, &v) == 0) {
 			picnic_send_ok(cmd, &send_offset_t);
+			picnic_dev->send_buffer[send_offset_t++] = 0x00;
 			picnic_dev->send_buffer[send_offset_t++] = v;
 		    } else {
 			picnic_send_status(cmd, &send_offset_t, 0xFF); // STEP hold can't be FF (255) so this is treated as error
 		    }
 		    break;
+		case PICNIC_PROTO_CMD_READ_SETTING_CARRY_FREQUENCY: // Pulse generator frequency in KHz
+		    picnic_send_ok(cmd, &send_offset_t);
+		    picnic_dev->send_buffer[send_offset_t++] = (picnc->caps.carry_freq & 0xFF00) >> 8;
+		    picnic_dev->send_buffer[send_offset_t++] = picnc->caps.carry_freq & 0xFF;
+		    break;
+
 		default:
 		    picnic_send_status(cmd, &send_offset_t, 0xFF); // Error code - command is invalid
 	    }

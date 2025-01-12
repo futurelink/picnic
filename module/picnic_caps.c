@@ -15,7 +15,8 @@ static const picnic_caps_t device_caps[PICNIC_DEVICES_N] = {
 	.output_banks = 1,
 	.output_addrs = { 0x0025 },
 	.dir_hold_addr = 0x0002,
-	.step_hold_addr = 0x0001
+	.step_hold_addr = 0x0001,
+	.carry_freq = 12500 // KHz
     }
 };
 

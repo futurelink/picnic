@@ -58,7 +58,6 @@ void update_state(void *arg, long period) {
 	    module->state->outputs[bank] = (*(module->outputs[i]) << i);
 	}
 
-
 #if defined(CONNECTION_NETWORK) || defined(CONNECTION_USART)
 	// Communication is established via network interface
         if (updated) write_output_buffer(module);   // Write state data to send buffer
@@ -116,6 +115,34 @@ void update_feedback(void *arg, long period) {
 #else
 	if (module->state->config.has_feedback) initialize_position(module);
 #endif
+
+	// Write DIR hold value to the device
+	uint8_t retval = picnic_device_write_dir_hold(module->device, module->dir_hold);
+	if (retval != 0) {
+	    rtapi_print_msg(RTAPI_MSG_ERR, "%s: Could not write DIR hold to device. Error: %d\n", retval);
+	    return;
+	}
+
+	// Write STEP hold value to the device
+	retval = picnic_device_write_step_hold(module->device, module->step_hold);
+	if (retval != 0) {
+	    rtapi_print_msg(RTAPI_MSG_ERR, "%s: Could not write STEP hold to device. Error: %d\n", retval);
+	    return;
+	}
+
+	if (module->dir_hold == 0) module->dir_hold = DEFAULT_DIR_HOLD;
+	rtapi_print_msg(RTAPI_MSG_INFO, "%s: global DIR hold: %f usec\n", MODULE_NAME, module->dir_hold);
+
+	if (module->step_hold == 0) module->step_hold = DEFAULT_STEP_HOLD;
+	rtapi_print_msg(RTAPI_MSG_INFO, "%s: global STEP hold: %f usec\n", MODULE_NAME, module->step_hold);
+
+
+	/* Set servo step hold to globally defined value if per-channel config is not supported */
+	if (!picnic_device_per_channel_dir_hold(module->device)) {
+	    for (int i = 0; i < module->state->config.servo_channels; i++) {
+		module->servo[i].step_hold = module->step_hold;
+	    }
+	}
 
 	module->state->initialized = true;
 	*(module->online) = true;

@@ -14,6 +14,9 @@
 #define FUNC_UPDATE_STATE	"picnic.update-state"
 #define FUNC_UPDATE_FEEDBACK    "picnic.update-feedback"
 
+#define DEFAULT_STEP_HOLD  2.6
+#define DEFAULT_DIR_HOLD   2.6
+
 /** This structure contains the runtime data for a single generator. */
 
 /* structure members are ordered to optimize caching for makepulses,

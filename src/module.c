@@ -134,10 +134,8 @@ static int init_module_config() {
 	    }
 	}
 
-	rtapi_print_msg(RTAPI_MSG_INFO, "%s: Device initialized\n", MODULE_NAME);
+	rtapi_print_msg(RTAPI_MSG_INFO, "%s: Device & configuration initialized\n", MODULE_NAME);
 
-
-	rtapi_print_msg(RTAPI_MSG_INFO, "%s: Configuration initialized\n", MODULE_NAME);
 	return 0;
 }
 
@@ -154,19 +152,24 @@ static int init_state() {
 	return -1;
     }
 
-    rtapi_print_msg(RTAPI_MSG_INFO, "%s: State allocated\n", MODULE_NAME);
-
     /* Get configuration form module device ID */
-    picnic_device_get_servo_channels(module->device, &module->state->config.servo_channels);
-    if (module->state->config.servo_channels == 0) {
+    uint16_t v = 0;
+    uint8_t retval = picnic_device_get_servo_channels(module->device, &v);
+    if (retval == 0) {
+	if (v == 0) {
 	    rtapi_print_msg(RTAPI_MSG_ERR, "%s: ERROR: no servo channels configured\n", MODULE_NAME);
 	    return -1;
+	} else {
+	    module->state->config.servo_channels = v & 0xFF;
+	}
+    } else {
+	rtapi_print_msg(RTAPI_MSG_ERR, "%s: ERROR: couldn't get servo channels number: %d\n", MODULE_NAME, retval);
     }
 
-    picnic_device_get_pwm_channels(module->device, &module->state->config.pwm_channels);
-    picnic_device_get_encoder_channels(module->device, &module->state->config.encoder_channels);
-    picnic_device_get_input_channels(module->device, &module->state->config.input_channels);
-    picnic_device_get_output_channels(module->device, &module->state->config.output_channels);
+    if (picnic_device_get_pwm_channels(module->device, &v) == 0) module->state->config.pwm_channels = v;
+    if (picnic_device_get_encoder_channels(module->device, &v) == 0) module->state->config.encoder_channels = v;
+    if (picnic_device_get_input_channels(module->device, &v) == 0) module->state->config.input_channels = v;
+    if (picnic_device_get_output_channels(module->device, &v) == 0) module->state->config.output_channels = v;
     module->state->config.has_feedback = picnic_device_holds_positions(module->device);
 
     /* Allocate module servo state structure */
@@ -179,8 +182,6 @@ static int init_state() {
 	}
     }
 
-    rtapi_print_msg(RTAPI_MSG_INFO, "%s: Servos allocated\n", MODULE_NAME);
-
     /* Allocate module PWM state structure */
     if (module->state->config.pwm_channels > 0) {
 	module->state->pwm = hal_malloc(module->state->config.pwm_channels * sizeof(pwm_state_t));
@@ -189,7 +190,6 @@ static int init_state() {
 	    hal_exit(comp_id);
 	    return -1;
 	}
-	rtapi_print_msg(RTAPI_MSG_INFO, "%s: PWMs allocated\n", MODULE_NAME);
     }
 
     // Allocate buffers
@@ -205,8 +205,6 @@ static int init_state() {
 
     module->state->initialized = false;
 
-    rtapi_print_msg(RTAPI_MSG_INFO, "%s: State initialized\n", MODULE_NAME);
-
     return 0;
 }
 
@@ -216,8 +214,6 @@ static int init_state() {
 
 static int export() {
     int ret = 0;
-
-    rtapi_print_msg(RTAPI_MSG_INFO, "%s: Exporting all\n", MODULE_NAME);
 
     /* export module pins */
     ret = export_module_pins();
@@ -278,15 +274,11 @@ static int export() {
         return -1;
     }
 
-    rtapi_print_msg(RTAPI_MSG_INFO, "%s: Module instantiated\n", MODULE_NAME);
-
     return ret;
 }
 
 static int export_module_pins() {
     int retval = 0;
-
-    rtapi_print_msg(RTAPI_MSG_INFO, "%s: Exporting pins\n", MODULE_NAME);
 
 #if defined(CONNECTION_NETWORK) || defined(CONNECTION_USART)
     /* export module parameter: offline-interval */
@@ -370,11 +362,11 @@ static int export_pwms() {
 
 	/* export pin for enable command */
 	retval = hal_pin_bit_newf(HAL_IN, &(pwm->enable), comp_id, "%s.pwm.%d.enable", MODULE_NAME, num);
-	if (retval != 0) return retval;   
+	if (retval != 0) return retval;
 
 	/* export pin for PWM duty value */
 	retval = hal_pin_float_newf(HAL_IN, &(pwm->value), comp_id, "%s.pwm.%d.value", MODULE_NAME, num);
-	if (retval != 0) return retval;   
+	if (retval != 0) return retval;
 
 	/* export PWM scale param */
 	retval = hal_param_float_newf(HAL_RW, &(pwm->scale), comp_id, "%s.pwm.%d.scale", MODULE_NAME, num);
@@ -411,9 +403,7 @@ static int export_servo(int num, servo_t *servo) {
     if (picnic_device_per_channel_dir_hold(module->device)) {
 	retval = hal_param_float_newf(HAL_RW, &(servo->dir_hold), comp_id, "%s.servo.%d.dir-hold", MODULE_NAME, num);
 	if (retval != 0) return retval;
-    } else {
-	if (module->dir_hold > 0) servo->dir_hold = module->dir_hold;
-	else servo->dir_hold = 2.6; // Default value
+	rtapi_print_msg(RTAPI_MSG_INFO, "%s: DIR hold on channel %d: %f usec\n", MODULE_NAME, num, servo->step_hold);
     }
 
     /* export param DIR signal is inverted */
@@ -424,13 +414,8 @@ static int export_servo(int num, servo_t *servo) {
     if (picnic_device_per_channel_step_hold(module->device)) {
 	retval = hal_param_float_newf(HAL_RW, &(servo->step_hold), comp_id, "%s.servo.%d.step-hold", MODULE_NAME, num);
 	if (retval != 0) return retval;
-    } else {
-	if (module->step_hold > 0) servo->step_hold = module->step_hold;
-	else servo->step_hold = 2.6; // Default value
+	rtapi_print_msg(RTAPI_MSG_INFO, "%s: STEP hold on channel %d: %f usec\n", MODULE_NAME, num, servo->step_hold);
     }
-
-    rtapi_print_msg(RTAPI_MSG_INFO, "%s: STEP hold on channel %d: %f\n", MODULE_NAME, num, servo->step_hold);
-    rtapi_print_msg(RTAPI_MSG_INFO, "%s: DIR hold on channel %d: %f\n", MODULE_NAME, num, servo->step_hold);
 
     /* export param STEP signal is inverted */
     retval = hal_param_bit_newf(HAL_RW, &(servo->step_active_low), comp_id, "%s.servo.%d.step-active-low", MODULE_NAME, num);

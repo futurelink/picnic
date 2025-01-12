@@ -148,6 +148,15 @@ int main(void) {
     printf("READ STEP HOLD received (%d bytes): %s\n", bytes, str);
     free(str);
 
+
+    request[2] = PICNIC_PROTO_CMD_READ_SETTING_CARRY_FREQUENCY;
+    request[3] = crc8(&request[1], 2);
+    write(fd, request, sizeof(request));
+    bytes = read(fd, b, 32);
+    str = bytes_to_str(b, bytes);
+    printf("Carry frequency received (%d bytes): %s\n", bytes, str);
+    free(str);
+
     b[0] = 1;
     b[1] = PICNIC_PROTO_CMD_READ_POSITIONS;
     b[2] = crc8(&b[1], 1);
@@ -157,7 +166,7 @@ int main(void) {
     printf("READ POSITIONS received (%d bytes): %s\n", bytes, str);
     free(str);
 
-//    return 0;
+    return 0;
 
     int n = 0;
     for (n = 0; n < 200; n++) {
