@@ -81,7 +81,7 @@ int main(void) {
     b[0] = 1;
     b[1] = PICNIC_PROTO_CMD_WRITE_STEP_HOLD;
     b[2] = 0x00;
-    b[3] = 13;
+    b[3] = 33;
     b[4] = crc8(b+1, 3);
     write(fd, b, 5);
     bytes = read(fd, b, 10);
@@ -92,7 +92,7 @@ int main(void) {
     b[0] = 1;
     b[1] = PICNIC_PROTO_CMD_WRITE_DIR_HOLD;
     b[2] = 0x00;
-    b[3] = 13;
+    b[3] = 33;
     b[4] = crc8(b+1, 3);
     write(fd, b, 5);
     bytes = read(fd, b, 10);
@@ -148,7 +148,6 @@ int main(void) {
     printf("READ STEP HOLD received (%d bytes): %s\n", bytes, str);
     free(str);
 
-
     request[2] = PICNIC_PROTO_CMD_READ_SETTING_CARRY_FREQUENCY;
     request[3] = crc8(&request[1], 2);
     write(fd, request, sizeof(request));
@@ -166,7 +165,7 @@ int main(void) {
     printf("READ POSITIONS received (%d bytes): %s\n", bytes, str);
     free(str);
 
-    return 0;
+//    return 0;
 
     int n = 0;
     for (n = 0; n < 200; n++) {

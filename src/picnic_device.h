@@ -30,6 +30,7 @@ int picnic_device_write_dir_hold(const picnic_device_t *dev, float dir_hold_usec
 
 uint16_t picnic_device_usec_to_ticks(const picnic_device_t *dev, float usec);
 float picnic_device_ticks_to_usec(const picnic_device_t *dev, uint16_t ticks);
+int picnic_device_check_period(const picnic_device_t *dev, long period_ns);
 
 int picnic_device_execute(const picnic_device_t *dev, state_t *state, int period_ns);
 

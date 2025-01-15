@@ -410,3 +410,14 @@ uint16_t picnic_device_usec_to_ticks(const picnic_device_t *dev, float usec) {
 float picnic_device_ticks_to_usec(const picnic_device_t *dev, uint16_t ticks) {
     return ticks / ((float) dev->carry_freq / 1000000.0f);
 }
+
+int picnic_device_check_period(const picnic_device_t *dev, long period_ns) {
+    float max_pulse_usec = period_ns / 1000.0f;
+    int max_pulse_ticks = picnic_device_usec_to_ticks(dev, max_pulse_usec);
+    if (max_pulse_ticks > 32767) {
+	rtapi_print_msg(RTAPI_MSG_ERR, "%s: Task period %d is too long for device's carry frequency %d KHz, it requires %d ticks for single pulse.\nPlease consider shorter task period.\n",
+	    MODULE_NAME, period_ns, dev->carry_freq, max_pulse_ticks);
+	return -1;
+    }
+    return 0;
+}
